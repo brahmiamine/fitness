@@ -153,6 +153,11 @@ export default function App() {
     return () => { active = false }
   }, [current?.id, current?.importedAt, day])
 
+  function handleViewChange(nextView) {
+    setView(nextView)
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }
+
   async function handleImport(file) {
     setImportState({ busy: true, progress: 'Lecture du fichier…', error: '' })
     try {
@@ -192,7 +197,7 @@ export default function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <Brand />
-        <Navigation active={view} onChange={setView} />
+        <Navigation active={view} onChange={handleViewChange} />
         <button className="sidebar-history" type="button" onClick={() => historyRef.current?.showModal()}>
           <FileClock size={19} aria-hidden="true" />
           <span>Historique</span>
@@ -231,7 +236,7 @@ export default function App() {
         </main>
       </div>
 
-      <Navigation active={view} onChange={setView} mobile />
+      <Navigation active={view} onChange={handleViewChange} mobile />
       <HistoryDialog
         dialogRef={historyRef}
         imports={imports}
