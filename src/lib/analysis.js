@@ -1,4 +1,4 @@
-import { average, formatDuration, formatNumber, median } from './format'
+import { average, formatDuration, formatNumber, median, percentile } from './format'
 
 export const SOURCES = {
   sleep: {
@@ -33,11 +33,12 @@ function activityAround(timestamp, records, windowMinutes = 2) {
 
 export function summarizeDay(dataset, dayKey) {
   const daily = dataset.days.find((day) => day.day === dayKey) ?? { day: dayKey }
-  const heartRows = preferredHeartSeries(dataset.heart.filter((row) => row.day === dayKey))
-  const spo2Rows = dataset.spo2.filter((row) => row.day === dayKey && row.value > 0)
-  const stressRows = dataset.stress.filter((row) => row.day === dayKey && row.value > 0)
-  const sleepRows = dataset.sleep.filter((row) => row.day === dayKey)
-  const records = dataset.records.filter((row) => row.day === dayKey)
+  const allHeartRows = (dataset.heart || []).filter((row) => row.day === dayKey)
+  const heartRows = preferredHeartSeries(allHeartRows)
+  const spo2Rows = (dataset.spo2 || []).filter((row) => row.day === dayKey && row.value > 0)
+  const stressRows = (dataset.stress || []).filter((row) => row.day === dayKey && row.value > 0)
+  const sleepRows = (dataset.sleep || []).filter((row) => row.day === dayKey)
+  const records = (dataset.records || []).filter((row) => row.day === dayKey)
   const sleepMinutes = sleepRows.reduce(
     (sum, row) => sum + (row.light || 0) + (row.deep || 0) + (row.rem || 0),
     0,
@@ -62,16 +63,29 @@ export function summarizeDay(dataset, dayKey) {
     heartMinimum: heartValues.length ? Math.min(...heartValues) : 0,
     heartMaximum: heartValues.length ? Math.max(...heartValues) : 0,
     heartSamples: heartValues.length,
+    heartAllSamples: allHeartRows.length,
+    heartPeriodicSamples: allHeartRows.filter((row) => row.type === 0).length,
+    heartDenseSamples: allHeartRows.filter((row) => row.type === 3).length,
+    heartLowPercentile: heartValues.length ? percentile(heartValues, 0.05) : 0,
+    heartHighPercentile: heartValues.length ? percentile(heartValues, 0.95) : 0,
     peakHeart,
     peakSteps: peakHeart ? activityAround(peakHeart.dateTime, records) : 0,
     spo2Average: oxygenValues.length ? average(oxygenValues) : 0,
     spo2Minimum: oxygenValues.length ? Math.min(...oxygenValues) : 0,
     spo2Maximum: oxygenValues.length ? Math.max(...oxygenValues) : 0,
     spo2Samples: oxygenValues.length,
+    spo2Median: oxygenValues.length ? median(oxygenValues) : 0,
+    spo2Below95: oxygenValues.filter((value) => value < 95).length,
     stressAverage: stressValues.length ? average(stressValues) : 0,
     stressMinimum: stressValues.length ? Math.min(...stressValues) : 0,
     stressMaximum: stressValues.length ? Math.max(...stressValues) : 0,
     stressSamples: stressValues.length,
+    stressMedian: stressValues.length ? median(stressValues) : 0,
+    recordSamples: records.length,
+    activeHours: new Set(records.filter((row) => row.steps > 0).map((row) => Math.floor(row.dateTime / 3_600_000))).size,
+    maximumMinuteSteps: records.length ? Math.max(...records.map((row) => row.steps || 0)) : 0,
+    energyMinimum: records.some((row) => row.energy > 0) ? Math.min(...records.filter((row) => row.energy > 0).map((row) => row.energy)) : 0,
+    energyMaximum: records.length ? Math.max(...records.map((row) => row.energy || 0)) : 0,
   }
 }
 

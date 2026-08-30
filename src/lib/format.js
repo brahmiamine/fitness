@@ -10,6 +10,16 @@ export function median(values) {
   return valid.length % 2 ? valid[middle] : (valid[middle - 1] + valid[middle]) / 2
 }
 
+export function percentile(values, ratio) {
+  const valid = values.filter(Number.isFinite).sort((a, b) => a - b)
+  if (!valid.length) return 0
+  const index = (valid.length - 1) * Math.max(0, Math.min(1, ratio))
+  const lower = Math.floor(index)
+  const upper = Math.ceil(index)
+  if (lower === upper) return valid[lower]
+  return valid[lower] + (valid[upper] - valid[lower]) * (index - lower)
+}
+
 export function localDateKey(timestamp, timezoneSeconds = 0) {
   if (!Number.isFinite(timestamp)) return ''
   return new Date(timestamp + timezoneSeconds * 1000).toISOString().slice(0, 10)
@@ -50,6 +60,19 @@ export function formatTime(timestamp, timezoneSeconds = 0) {
   }).format(new Date(timestamp + timezoneSeconds * 1000))
 }
 
+export function formatDateTime(timestamp, timezoneSeconds = 0) {
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return '—'
+  return new Intl.DateTimeFormat('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'UTC',
+  }).format(new Date(timestamp + timezoneSeconds * 1000))
+}
+
 export function formatDuration(minutes) {
   if (!Number.isFinite(minutes) || minutes < 0) return '—'
   const rounded = Math.round(minutes)
@@ -68,6 +91,13 @@ export function formatDistance(metres) {
   if (!Number.isFinite(metres)) return '—'
   if (metres < 1000) return `${Math.round(metres)} m`
   return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(metres / 1000)} km`
+}
+
+export function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) return '—'
+  if (bytes < 1024) return `${bytes} o`
+  if (bytes < 1024 ** 2) return `${formatNumber(bytes / 1024, 1)} Ko`
+  return `${formatNumber(bytes / 1024 ** 2, 1)} Mo`
 }
 
 export function downsample(points, target = 96) {

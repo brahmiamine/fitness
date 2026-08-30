@@ -2,11 +2,15 @@
 
 Application React/Vite mobile-first qui ouvre les sauvegardes `.nxk` de Notify for Xiaomi et présente les données d’activité, de sommeil, de fréquence cardiaque, de SpO₂ et de stress.
 
+Le lecteur couvre également les intervalles de sommeil, les relevés cardiaques périodiques et rapprochés, les mesures minute par minute, les séances, la batterie, les synchronisations, les compteurs de notifications, les mesures manuelles (poids, tension, glycémie), les rappels santé et l’inventaire complet des tables SQLite.
+
 ## Confidentialité
 
 - Le fichier est décompressé dans le navigateur avec JSZip.
 - La base SQLite est lue localement avec sql.js/WebAssembly.
 - Aucun fichier, trajet ou identifiant de montre n’est envoyé vers un serveur.
+- Les coordonnées GPS brutes sont agrégées en mémoire puis écartées ; seuls distance, durée, vitesse et altitude sont conservés.
+- Les adresses MAC, jetons et paramètres secrets ne sont pas extraits.
 - L’historique reste dans IndexedDB, sur l’appareil utilisé.
 
 ## Développement

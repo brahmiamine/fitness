@@ -31,9 +31,30 @@ function hasTable(tables, name) {
   return tables.has(name)
 }
 
+function quoteIdentifier(value) {
+  return `"${String(value).replaceAll('"', '""')}"`
+}
+
+function tableInventory(database, tables) {
+  return [...tables]
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => ({
+      name,
+      rows: number(query(database, `SELECT COUNT(*) AS count FROM ${quoteIdentifier(name)}`)[0]?.count),
+    }))
+}
+
 function number(value, fallback = 0) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function string(value) {
+  return value == null ? '' : String(value)
+}
+
+function sanitizeDeviceName(value) {
+  return string(value || 'Bracelet connecté').replace(/\s+[0-9a-f]{4}$/i, '').trim()
 }
 
 function normalizeTimedRows(rows) {
@@ -84,6 +105,7 @@ function summarizeGps(rows) {
     maximumSpeed: Math.max(...rows.map((row) => row.speed)) * 3.6,
     minimumAltitude: Math.min(...rows.map((row) => row.altitude)),
     maximumAltitude: Math.max(...rows.map((row) => row.altitude)),
+    pausedSamples: rows.filter((row) => row.pause).length,
   }
 }
 
@@ -118,6 +140,7 @@ function normalizeSleep(rows) {
       heartAverage: number(row.hrAvg),
       spo2Average: number(row.spo2Avg),
       modified: Boolean(row.userModified),
+      turnOvers: number(row.turnOver),
     }
   })
 }
@@ -149,6 +172,7 @@ function buildDays(dayRows, records, heart, spo2, stress, sleep) {
       activeMinutes: number(row.activeMinutes),
       intensiveMinutes: number(row.intensiveMinutes),
       pai: number(row.pai),
+      paiEarned: number(row.paiEarned),
       distance: number(row.distance),
       heartAverage: number(row.hr),
       spo2Average: number(row.spo2),
@@ -227,7 +251,7 @@ export async function parseNxk(file, onProgress = () => {}) {
 
     onProgress('Analyse des mesures…')
     const dayRows = hasTable(tables, 'day')
-      ? query(database, 'SELECT day, steps, calories, activeMinutes, intensiveMinutes, pai, distance, hr, spo2, stress FROM day ORDER BY day DESC')
+      ? query(database, 'SELECT day, steps, calories, activeMinutes, intensiveMinutes, pai, paiEarned, distance, hr, spo2, stress FROM day ORDER BY day DESC')
       : []
     const records = hasTable(tables, 'record')
       ? normalizeRecords(
@@ -245,7 +269,7 @@ export async function parseNxk(file, onProgress = () => {}) {
       : []
     const sleep = hasTable(tables, 'sleep')
       ? normalizeSleep(
-          query(database, 'SELECT start, end, tz, day, light, deep, rem, awake, total, hrAvg, spo2Avg, userModified FROM sleep ORDER BY start'),
+          query(database, 'SELECT start, end, tz, day, light, deep, rem, awake, total, turnOver, hrAvg, spo2Avg, userModified FROM sleep ORDER BY start'),
         )
       : []
     const sleepIntervals = hasTable(tables, 'sleepIntervals')
@@ -289,17 +313,111 @@ export async function parseNxk(file, onProgress = () => {}) {
           day: localDateKey(number(row.startDateTime), number(row.tz)),
         }))
       : []
+    const weights = hasTable(tables, 'weight')
+      ? query(database, 'SELECT dateTime, tz, value FROM weight ORDER BY dateTime').map((row) => ({
+          dateTime: number(row.dateTime),
+          tz: number(row.tz),
+          value: number(row.value),
+          day: localDateKey(number(row.dateTime), number(row.tz)),
+        }))
+      : []
+    const bloodPressure = hasTable(tables, 'blood_pressure')
+      ? query(database, 'SELECT dateTime, tz, systolic, diastolic, heartRate, position, measurementSite, context, medicationTiming, irregularHeartbeat, deviceName, notes FROM blood_pressure ORDER BY dateTime').map((row) => ({
+          dateTime: number(row.dateTime),
+          tz: number(row.tz),
+          systolic: number(row.systolic),
+          diastolic: number(row.diastolic),
+          heartRate: number(row.heartRate),
+          position: number(row.position),
+          measurementSite: number(row.measurementSite),
+          context: number(row.context),
+          medicationTiming: number(row.medicationTiming),
+          irregularHeartbeat: Boolean(row.irregularHeartbeat),
+          deviceName: string(row.deviceName),
+          notes: string(row.notes),
+          day: localDateKey(number(row.dateTime), number(row.tz)),
+        }))
+      : []
+    const bloodGlucose = hasTable(tables, 'blood_glucose')
+      ? query(database, 'SELECT dateTime, tz, valueMgDl, displayUnit, mealRelation, mealType, mealOffsetMinutes, sampleSource, carbohydratesGrams, insulinUnits, insulinType, medicationTiming, recentExercise, deviceName, notes FROM blood_glucose ORDER BY dateTime').map((row) => ({
+          dateTime: number(row.dateTime),
+          tz: number(row.tz),
+          valueMgDl: number(row.valueMgDl),
+          displayUnit: number(row.displayUnit),
+          mealRelation: number(row.mealRelation),
+          mealType: number(row.mealType),
+          mealOffsetMinutes: number(row.mealOffsetMinutes),
+          sampleSource: number(row.sampleSource),
+          carbohydratesGrams: number(row.carbohydratesGrams),
+          insulinUnits: number(row.insulinUnits),
+          insulinType: string(row.insulinType),
+          medicationTiming: number(row.medicationTiming),
+          recentExercise: number(row.recentExercise),
+          deviceName: string(row.deviceName),
+          notes: string(row.notes),
+          day: localDateKey(number(row.dateTime), number(row.tz)),
+        }))
+      : []
+    const reminders = hasTable(tables, 'health_reminder')
+      ? query(database, 'SELECT measurementType, label, hour, minute, daysMask, enabled, defaultContext, snoozeMinutes FROM health_reminder ORDER BY hour, minute').map((row) => ({
+          measurementType: number(row.measurementType),
+          label: string(row.label),
+          hour: number(row.hour),
+          minute: number(row.minute),
+          daysMask: number(row.daysMask),
+          enabled: Boolean(row.enabled),
+          defaultContext: number(row.defaultContext),
+          snoozeMinutes: number(row.snoozeMinutes),
+        }))
+      : []
+    const notifications = hasTable(tables, 'DailyAppStats')
+      ? query(database, 'SELECT dayKey, appName, totalCount, filteredCount FROM DailyAppStats ORDER BY dayKey, totalCount DESC').map((row) => ({
+          dateTime: number(row.dayKey),
+          day: localDateKey(number(row.dayKey), 0),
+          appName: string(row.appName),
+          total: number(row.totalCount),
+          filtered: number(row.filteredCount),
+        }))
+      : []
+    const battery = hasTable(tables, 'statsLogs')
+      ? query(database, "SELECT dateTime, tz, batteryLevel FROM statsLogs WHERE appName = 'battery' AND batteryLevel > 0 ORDER BY dateTime").map((row) => ({
+          dateTime: number(row.dateTime),
+          tz: number(row.tz),
+          value: number(row.batteryLevel),
+          day: localDateKey(number(row.dateTime), number(row.tz)),
+        }))
+      : []
+    const statistics = hasTable(tables, 'stats')
+      ? query(database, 'SELECT statName, periodStart, periodEnd, totalNotifications, uniqueNotifications, totalVibrationsLength, totalVibrations, totalWatchfaces, uniqueWatchfaces, batteryLevelStart, batteryLevelEnd FROM stats').map((row) => ({
+          name: string(row.statName),
+          start: number(row.periodStart),
+          end: number(row.periodEnd),
+          totalNotifications: number(row.totalNotifications),
+          uniqueNotifications: number(row.uniqueNotifications),
+          vibrationDuration: number(row.totalVibrationsLength),
+          vibrations: number(row.totalVibrations),
+          watchfaces: number(row.totalWatchfaces),
+          uniqueWatchfaces: number(row.uniqueWatchfaces),
+          batteryStart: number(row.batteryLevelStart),
+          batteryEnd: number(row.batteryLevelEnd),
+        }))
+      : []
+    const syncRows = hasTable(tables, 'syncRecord')
+      ? query(database, 'SELECT dateTime FROM syncRecord ORDER BY dateTime').map((row) => number(row.dateTime)).filter(Boolean)
+      : []
+    const inventory = tableInventory(database, tables)
 
     const days = buildDays(dayRows, records, heart, spo2, stress, sleep)
     if (!days.length) throw new Error('Aucune journée fitness exploitable n’a été trouvée.')
 
     return {
+      schemaVersion: 2,
       id,
       fileName: file.name,
       fileSize: file.size,
       importedAt: new Date().toISOString(),
       device: profile
-        ? { name: String(profile.watchName || 'Bracelet connecté'), type: number(profile.watchType) }
+        ? { name: sanitizeDeviceName(profile.watchName), type: number(profile.watchType) }
         : null,
       days,
       records,
@@ -310,10 +428,24 @@ export async function parseNxk(file, onProgress = () => {}) {
       sleepIntervals,
       workouts,
       gps: summarizeGpsByDay(gpsRows),
+      weights,
+      bloodPressure,
+      bloodGlucose,
+      reminders,
+      notifications,
+      battery,
+      statistics,
       metadata: {
         tableCount: tables.size,
         recordCount: records.length + heart.length + spo2.length + stress.length,
         firstMinute: records.length ? localMinutes(records[0].dateTime, records[0].tz) : null,
+        inventory,
+        totalRows: inventory.reduce((sum, table) => sum + table.rows, 0),
+        gpsPointsDiscarded: gpsRows.length,
+        syncCount: syncRows.length,
+        firstSync: syncRows[0] || 0,
+        lastSync: syncRows.at(-1) || 0,
+        protectedFields: ['coordonnées GPS brutes', 'adresse MAC', 'jetons et paramètres secrets'],
       },
     }
   } finally {

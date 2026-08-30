@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildInsights, preferredHeartSeries, summarizeDay } from '../lib/analysis'
-import { formatDuration, localDateKey } from '../lib/format'
+import { formatBytes, formatDuration, localDateKey, percentile } from '../lib/format'
 
 const dataset = {
   days: [{ day: '2026-08-30', steps: 11421, calories: 752, distance: 7658, activeMinutes: 122 }],
@@ -35,7 +35,11 @@ describe('fitness summaries', () => {
 
   it('uses periodic heart samples instead of dense live samples', () => {
     expect(preferredHeartSeries(dataset.heart)).toHaveLength(2)
-    expect(summarizeDay(dataset, '2026-08-30').heartAverage).toBe(109)
+    const summary = summarizeDay(dataset, '2026-08-30')
+    expect(summary.heartAverage).toBe(109)
+    expect(summary.heartAllSamples).toBe(3)
+    expect(summary.heartPeriodicSamples).toBe(2)
+    expect(summary.heartDenseSamples).toBe(1)
   })
 
   it('contextualizes a peak when steps exist nearby', () => {
@@ -51,5 +55,10 @@ describe('formatting', () => {
 
   it('applies the stored timezone to day keys', () => {
     expect(localDateKey(Date.UTC(2026, 7, 29, 23, 30), 7200)).toBe('2026-08-30')
+  })
+
+  it('formats archive sizes and calculates percentiles', () => {
+    expect(formatBytes(1536)).toBe('1,5 Ko')
+    expect(percentile([10, 20, 30], 0.5)).toBe(20)
   })
 })
