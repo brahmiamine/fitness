@@ -52,7 +52,7 @@ export function UploadPanel({ onImport, busy, progress, error, compact = false }
           <Upload size={18} aria-hidden="true" />
           {busy ? progress || 'Analyse en cours…' : 'Choisir un fichier NXK'}
         </button>
-        {!compact && <p className="drop-zone__hint">Vous pouvez aussi déposer le fichier ici · 50 Mo maximum</p>}
+        {!compact && <p className="drop-zone__hint">Vous pouvez aussi déposer le fichier ici · 256 Mo maximum</p>}
       </div>
       {error && (
         <div className="inline-error" role="alert">

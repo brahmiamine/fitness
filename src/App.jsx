@@ -111,6 +111,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [dataset, setDataset] = useState(null)
   const [dayLoading, setDayLoading] = useState(false)
+  const [privateGps, setPrivateGps] = useState({ importId: '', rows: [] })
   const [importState, setImportState] = useState({ busy: false, progress: '', error: '' })
   const historyRef = useRef(null)
 
@@ -158,6 +159,7 @@ export default function App() {
       await prepareStorage(file.size)
       const dataset = await parseNxk(file, (progress) => setImportState({ busy: true, progress, error: '' }))
       await saveImport(dataset)
+      setPrivateGps({ importId: dataset.id, rows: dataset.gpsPrivate || [] })
       const items = await listImports()
       setImports(items)
       setCurrentId(dataset.id)
@@ -174,6 +176,7 @@ export default function App() {
     const item = imports.find((entry) => entry.id === id)
     if (!item || !window.confirm(`Supprimer l’import « ${item.fileName} » de ce navigateur ?`)) return
     await deleteImport(id)
+    if (privateGps.importId === id) setPrivateGps({ importId: '', rows: [] })
     const items = await listImports()
     setImports(items)
     if (currentId === id) setCurrentId(items[0]?.id || '')
@@ -217,7 +220,12 @@ export default function App() {
 
         <main className="main-content" id="main-content" aria-busy={dayLoading}>
           {dataset && dataset.id === current.id && (dataset.storageMode !== 'day-partitioned' || dataset.day === day)
-            ? <Dashboard dataset={dataset} day={day} view={view} />
+            ? <Dashboard
+                dataset={dataset}
+                day={day}
+                view={view}
+                privateGps={privateGps.importId === current.id ? privateGps.rows.filter((row) => row.day === day) : []}
+              />
             : <div className="app-loading app-loading--inline" role="status"><span className="loader" aria-hidden="true" /> Chargement de la journée…</div>}
         </main>
       </div>

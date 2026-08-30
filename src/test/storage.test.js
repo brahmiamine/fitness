@@ -15,12 +15,15 @@ describe('partitioned fitness storage', () => {
       ],
       records: [{ day: '2026-08-30', steps: 10 }],
       notifications: [{ day: '2026-08-30', appName: 'mail', total: 4, filtered: 1 }],
+      gpsPrivate: [{ day: '2026-08-30', latitude: 48.8, longitude: 2.3 }],
     }
 
     const { manifest, chunks } = partitionImport(item)
 
     expect(manifest.storageMode).toBe('day-partitioned')
     expect(manifest).not.toHaveProperty('heart')
+    expect(manifest).not.toHaveProperty('gpsPrivate')
+    expect(manifest.schemaVersion).toBe(4)
     expect(manifest.metadata.coverage.dayCount).toBe(2)
     expect(manifest.metadata.domainCounts.heart).toBe(2)
     expect(manifest.metadata.notificationApps[0].total).toBe(4)

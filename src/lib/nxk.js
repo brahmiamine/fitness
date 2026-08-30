@@ -2,6 +2,7 @@ import JSZip from 'jszip'
 import initSqlJs from 'sql.js'
 import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url'
 import { localDateKey, localMinutes } from './format'
+import { buildQualityReport } from './quality'
 
 const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
 const MAX_DATABASE_BYTES = 512 * 1024 * 1024
@@ -98,6 +99,43 @@ function tableInventory(database, tables) {
       name,
       rows: number(query(database, `SELECT COUNT(*) AS count FROM ${quoteIdentifier(name)}`)[0]?.count),
     }))
+}
+
+function technicalSchemaCatalog(database, tables, compatibility) {
+  const adapted = new Set(compatibility.addedColumns)
+  return [...tables].sort((a, b) => a.localeCompare(b)).map((table) => ({
+    table,
+    columns: query(database, `PRAGMA table_info(${quoteIdentifier(table)})`).map((column) => ({
+      name: string(column.name),
+      type: string(column.type || 'non déclaré'),
+      nullable: !Boolean(column.notnull),
+      primaryKey: Boolean(column.pk),
+      adapted: adapted.has(`${table}.${column.name}`),
+      protected: /token|secret|password|passwd|mac|setting|raw|info|data/i.test(string(column.name)) || table === 'appSetting',
+    })),
+  }))
+}
+
+function fieldSummary(database, tables, table, column, label) {
+  if (!hasTable(tables, table)) return null
+  const tableName = actualTableName(tables, table)
+  const columns = query(database, `PRAGMA table_info(${quoteIdentifier(tableName)})`)
+  const actualColumn = columns.find((item) => string(item.name).toLocaleLowerCase() === column.toLocaleLowerCase())?.name
+  if (!actualColumn) return null
+  const [summary] = query(
+    database,
+    `SELECT COUNT(${quoteIdentifier(actualColumn)}) AS count, COALESCE(SUM(length(${quoteIdentifier(actualColumn)})), 0) AS totalBytes, COALESCE(MAX(length(${quoteIdentifier(actualColumn)})), 0) AS maximumBytes, typeof(${quoteIdentifier(actualColumn)}) AS storageType FROM ${quoteIdentifier(tableName)}`,
+  )
+  return {
+    source: `${tableName}.${actualColumn}`,
+    label,
+    count: number(summary?.count),
+    totalBytes: number(summary?.totalBytes),
+    maximumBytes: number(summary?.maximumBytes),
+    storageType: string(summary?.storageType || 'inconnu'),
+    decoded: false,
+    protected: true,
+  }
 }
 
 function number(value, fallback = 0) {
@@ -257,7 +295,6 @@ function buildDays(dayRows, records, heart, spo2, stress, sleep, additionalColle
         heartSum: 0,
         heartCount: 0,
         spo2Sum: 0,
-        spo2Count: 0,
         stressSum: 0,
         stressCount: 0,
       })
@@ -334,6 +371,19 @@ export async function parseNxk(file, onProgress = () => {}) {
   }
   const databaseEntry = Object.values(zip.files).find((entry) => /(^|\/)backup\.db$/i.test(entry.name))
   if (!databaseEntry) throw new Error('La sauvegarde ne contient pas de base backup.db.')
+  const obfuscatedArchiveEntry = Object.values(zip.files).find((entry) => /(^|\/)backup\.bak$/i.test(entry.name))
+  const archiveTechnical = obfuscatedArchiveEntry
+    ? {
+        source: obfuscatedArchiveEntry.name,
+        label: 'Configuration obfusquée de l’archive',
+        count: 1,
+        totalBytes: number(obfuscatedArchiveEntry?._data?.uncompressedSize),
+        maximumBytes: number(obfuscatedArchiveEntry?._data?.uncompressedSize),
+        storageType: 'fichier obfusqué',
+        decoded: false,
+        protected: true,
+      }
+    : null
 
   onProgress('Ouverture de la base locale…')
   const databaseBytes = await databaseEntry.async('uint8array')
@@ -513,6 +563,21 @@ export async function parseNxk(file, onProgress = () => {}) {
       : []
     const inventory = tableInventory(database, tables)
     const gpsSummaries = summarizeGpsByDay(gpsRows)
+    const technical = {
+      schema: technicalSchemaCatalog(database, tables, compatibility),
+      obfuscatedFields: [
+        archiveTechnical,
+        fieldSummary(database, tables, 'profile', 'data', 'Profil interne du bracelet'),
+        fieldSummary(database, tables, 'day', 'info', 'Informations quotidiennes obfusquées'),
+        fieldSummary(database, tables, 'day', 'rawData', 'Données quotidiennes binaires'),
+        fieldSummary(database, tables, 'sleep', 'info', 'Informations internes du sommeil'),
+      ].filter(Boolean),
+      policy: {
+        valuesExtracted: false,
+        secretsDisplayed: false,
+        description: 'Seules la structure, le type et la taille sont exposés. Les contenus, jetons et identifiants restent masqués.',
+      },
+    }
 
     const days = buildDays(dayRows, records, heart, spo2, stress, sleep, [
       workouts,
@@ -525,8 +590,8 @@ export async function parseNxk(file, onProgress = () => {}) {
     ])
     if (!days.length) throw new Error('Aucune journée fitness exploitable n’a été trouvée.')
 
-    return {
-      schemaVersion: 3,
+    const dataset = {
+      schemaVersion: 4,
       id,
       fileName: file.name,
       fileSize: file.size,
@@ -543,6 +608,18 @@ export async function parseNxk(file, onProgress = () => {}) {
       sleepIntervals,
       workouts,
       gps: gpsSummaries,
+      gpsPrivate: gpsRows
+        .filter((row) => Number.isFinite(row.latitude) && Number.isFinite(row.longitude) && Math.abs(row.latitude) <= 90 && Math.abs(row.longitude) <= 180)
+        .map((row) => ({
+          day: localDateKey(row.dateTime, row.tz),
+          dateTime: row.dateTime,
+          tz: row.tz,
+          latitude: row.latitude,
+          longitude: row.longitude,
+          altitude: row.altitude,
+          speed: row.speed,
+          pause: row.pause,
+        })),
       weights,
       bloodPressure,
       bloodGlucose,
@@ -550,6 +627,7 @@ export async function parseNxk(file, onProgress = () => {}) {
       notifications,
       battery,
       statistics,
+      technical,
       metadata: {
         tableCount: tables.size,
         recordCount: records.length + heart.length + spo2.length + stress.length,
@@ -564,6 +642,15 @@ export async function parseNxk(file, onProgress = () => {}) {
         compatibility,
       },
     }
+    const quality = buildQualityReport(dataset)
+    dataset.days = quality.days
+    dataset.metadata.quality = {
+      score: quality.score,
+      level: quality.level,
+      checks: quality.checks,
+      summary: quality.summary,
+    }
+    return dataset
   } finally {
     database.close()
   }

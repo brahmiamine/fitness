@@ -12,14 +12,19 @@ Le lecteur couvre également les intervalles de sommeil, les relevés cardiaques
 - IndexedDB conserve un manifeste léger et une partition par jour. Changer de date ne charge que les données détaillées de cette journée.
 - Les graphiques limitent automatiquement le nombre de points rendus et les tableaux affichent les lignes progressivement.
 - L’espace disponible est vérifié avant l’import. La limite de sécurité est de 256 Mo pour l’archive et 512 Mo pour la base SQLite extraite ; la capacité réelle dépend de la mémoire et du quota du navigateur.
-- Le modèle de données interne est versionné (`schemaVersion: 3`) afin que les futurs adaptateurs puissent migrer les imports sans perdre les sources.
+- Un rapport de qualité contrôle doublons, plages techniques, sommeil, fuseaux, schéma et continuité avant toute interprétation.
+- La comparaison reste limitée aux journées du backup sélectionné (7, 30, 90 jours ou toute sa couverture).
+- Les courbes proposent une lecture tactile, à la souris et au clavier ; chaque tableau dispose d’une recherche et d’un tri local.
+- La carte GPS est facultative et éphémère : la trace brute disparaît au rechargement et n’entre jamais dans IndexedDB.
+- Le mode technique expose uniquement la structure et la taille des blocs obfusqués, jamais leurs valeurs, jetons ou secrets.
+- Le modèle de données interne est versionné (`schemaVersion: 4`) afin que les futurs adaptateurs puissent migrer les imports sans perdre les sources.
 
 ## Confidentialité
 
 - Le fichier est décompressé dans le navigateur avec JSZip.
 - La base SQLite est lue localement avec sql.js/WebAssembly.
 - Aucun fichier, trajet ou identifiant de montre n’est envoyé vers un serveur.
-- Les coordonnées GPS brutes sont agrégées en mémoire puis écartées ; seuls distance, durée, vitesse et altitude sont conservés.
+- Les coordonnées GPS brutes restent uniquement en mémoire volatile pour la carte facultative ; elles ne sont jamais enregistrées et disparaissent au rechargement. Seuls distance, durée, vitesse et altitude sont conservés.
 - Les adresses MAC, jetons et paramètres secrets ne sont pas extraits.
 - L’historique reste dans IndexedDB, sur l’appareil utilisé.
 - Les mesures détaillées sont compartimentées par journée ; l’archive SQLite originale n’est pas conservée.

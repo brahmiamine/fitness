@@ -20,6 +20,7 @@ export const DAY_DATA_FIELDS = [
 ]
 
 const EMPTY_DAY_DATA = Object.fromEntries(DAY_DATA_FIELDS.map((field) => [field, []]))
+const TRANSIENT_PRIVATE_FIELDS = ['gpsPrivate']
 
 function openDatabase() {
   return new Promise((resolve, reject) => {
@@ -91,6 +92,7 @@ function aggregateNotifications(rows = []) {
 function buildManifest(item) {
   const manifest = { ...item }
   for (const field of DAY_DATA_FIELDS) delete manifest[field]
+  for (const field of TRANSIENT_PRIVATE_FIELDS) delete manifest[field]
   let batteryMinimum = Number.POSITIVE_INFINITY
   let batteryMaximum = Number.NEGATIVE_INFINITY
   let batterySamples = 0
@@ -102,7 +104,7 @@ function buildManifest(item) {
     batterySamples += 1
   }
   const domainCounts = Object.fromEntries(DAY_DATA_FIELDS.map((field) => [field, (item[field] || []).length]))
-  manifest.schemaVersion = Math.max(3, Number(item.schemaVersion) || 0)
+  manifest.schemaVersion = Math.max(4, Number(item.schemaVersion) || 0)
   manifest.storageMode = 'day-partitioned'
   manifest.metadata = {
     ...item.metadata,

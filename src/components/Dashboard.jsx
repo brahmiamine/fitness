@@ -33,6 +33,10 @@ import {
 import { DayTimeline } from './DayTimeline'
 import { LineChart, StageBar } from './Charts'
 import { ArchiveInventory, DetailTable } from './DataDetails'
+import { LocalGpsMap } from './LocalGpsMap'
+import { MultiDayComparison } from './MultiDayComparison'
+import { QualityReport } from './QualityReport'
+import { TechnicalMode } from './TechnicalMode'
 
 const APP_LABELS = {
   'com.google.android.gm': 'Gmail',
@@ -122,7 +126,7 @@ function DataQuality({ dataset, summary }) {
           <div><dt>Mesures de stress</dt><dd>{formatNumber(summary.stressSamples)}</dd></div>
           <div><dt>Lignes fitness analysées</dt><dd>{formatNumber(dataset.metadata?.recordCount || 0)}</dd></div>
           <div><dt>Toutes lignes SQLite</dt><dd>{formatNumber(dataset.metadata?.totalRows || dataset.metadata?.recordCount || 0)}</dd></div>
-          <div><dt>Points GPS agrégés puis écartés</dt><dd>{formatNumber(dataset.metadata?.gpsPointsDiscarded || 0)}</dd></div>
+          <div><dt>Points GPS jamais enregistrés</dt><dd>{formatNumber(dataset.metadata?.gpsPointsDiscarded || 0)}</dd></div>
           <div><dt>Tables détectées</dt><dd>{formatNumber(dataset.metadata?.tableCount || 0)}</dd></div>
           <div><dt>Colonnes adaptées au schéma</dt><dd>{formatNumber(compatibility?.addedColumns?.length || 0)}</dd></div>
           <div><dt>Champs nouveaux conservés au catalogue</dt><dd>{formatNumber(compatibility?.unknownColumns?.length || 0)}</dd></div>
@@ -143,7 +147,7 @@ function ArchiveOverview({ dataset }) {
     <>
       <section className="content-section">
         <SectionHeading icon={Watch} title="Appareil et sauvegarde" description="Provenance, volume et couverture technique de l’import." />
-        {dataset.schemaVersion < 3 && <p className="schema-warning">Cette sauvegarde a été importée avec l’ancienne version du lecteur. Réimportez le fichier NXK pour profiter du stockage optimisé pour plusieurs années.</p>}
+        {dataset.schemaVersion < 4 && <p className="schema-warning">Cette sauvegarde a été importée avec l’ancienne version du lecteur. Réimportez le fichier NXK pour calculer le rapport de qualité, les comparaisons et le mode technique.</p>}
         <dl className="fact-grid">
           <div><Watch size={18} aria-hidden="true" /><dt>Appareil</dt><dd>{dataset.device?.name || 'Non identifié'}</dd></div>
           <div><FileArchive size={18} aria-hidden="true" /><dt>Archive</dt><dd>{dataset.fileName}<small>{formatBytes(dataset.fileSize)}</small></dd></div>
@@ -183,6 +187,7 @@ function ArchiveOverview({ dataset }) {
       </section>
 
       <ArchiveInventory dataset={dataset} />
+      <TechnicalMode dataset={dataset} />
     </>
   )
 }
@@ -206,6 +211,9 @@ function Overview({ dataset, day, summary }) {
           ]}
         />
       </section>
+
+      <QualityReport dataset={dataset} day={day} />
+      <MultiDayComparison dataset={dataset} day={day} />
 
       <section className="content-section content-section--timeline">
         <SectionHeading icon={Activity} title="Ligne de la journée" description="Les mesures replacées sur la même période de 24 heures." />
@@ -443,7 +451,7 @@ function VitalsView({ dataset, day, summary }) {
   )
 }
 
-function ActivityView({ dataset, day, summary }) {
+function ActivityView({ dataset, day, summary, privateGps }) {
   const records = (dataset.records || []).filter((row) => row.day === day)
   const workouts = (dataset.workouts || []).filter((row) => row.day === day)
   const hourly = Array.from({ length: 24 }, (_, hour) => {
@@ -493,6 +501,7 @@ function ActivityView({ dataset, day, summary }) {
           </div>
         </section>
       )}
+      <LocalGpsMap points={privateGps} />
       <section className="content-section">
         <SectionHeading icon={Database} title="Journal d’activité" description="Toutes les lignes minute par minute, y compris celles sans pas." />
         <DetailTable
@@ -538,14 +547,14 @@ export const VIEW_ITEMS = [
   { id: 'activity', label: 'Activité', icon: Footprints },
 ]
 
-export function Dashboard({ dataset, day, view }) {
+export function Dashboard({ dataset, day, view, privateGps = [] }) {
   const summary = summarizeDay(dataset, day)
   const views = {
     overview: <Overview dataset={dataset} day={day} summary={summary} />,
     sleep: <SleepView dataset={dataset} day={day} summary={summary} />,
     heart: <HeartView dataset={dataset} day={day} summary={summary} />,
     vitals: <VitalsView dataset={dataset} day={day} summary={summary} />,
-    activity: <ActivityView dataset={dataset} day={day} summary={summary} />,
+    activity: <ActivityView dataset={dataset} day={day} summary={summary} privateGps={privateGps} />,
   }
   return views[view] || views.overview
 }
