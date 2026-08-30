@@ -4,7 +4,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig(async ({ command }) => {
   const plugins = [react()]
   if (command === 'serve' && process.env.VISUAL_TRUTH === '1') {
-    const { visualTruthSourcePlugin } = await import('visual-truth/vite')
+    const visualTruthEntry = ['visual-truth', 'vite'].join('/')
+    const { visualTruthSourcePlugin } = await import(visualTruthEntry)
     plugins.unshift(visualTruthSourcePlugin())
   }
   return {
