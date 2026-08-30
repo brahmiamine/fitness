@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Pulse">
+  <rect width="512" height="512" fill="#ffffff"/>
+  <rect x="72" y="72" width="368" height="368" rx="112" fill="#8c4f08"/>
+  <rect x="161" y="258" width="48" height="102" rx="24" fill="#ffffff"/>
+  <rect x="232" y="147" width="48" height="213" rx="24" fill="#ffffff"/>
+  <rect x="303" y="207" width="48" height="153" rx="24" fill="#ffffff"/>
+</svg>

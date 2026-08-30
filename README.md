@@ -39,6 +39,13 @@ Le lecteur couvre également les intervalles de sommeil, les relevés cardiaques
 - Les mesures détaillées sont compartimentées par journée ; l’archive SQLite originale n’est pas conservée.
 - Les résultats intelligents sont recalculés à la demande et ne sont ni envoyés ni enregistrés séparément.
 
+## Installation PWA
+
+- Android : utilisez le bouton « Installer Pulse » ou l’option d’installation proposée par Chrome.
+- iPhone : ouvrez le site dans Safari, touchez « Partager », puis « Sur l’écran d’accueil ».
+- Le manifeste fournit les icônes standard et maskable. Des écrans de démarrage portrait sont inclus pour les principales résolutions d’iPhone.
+- Le service worker conserve l’interface et les ressources déjà utilisées afin que l’application installée puisse redémarrer hors ligne. Les backups et leurs analyses restent dans IndexedDB sur l’appareil.
+
 ## Développement
 
 ```bash

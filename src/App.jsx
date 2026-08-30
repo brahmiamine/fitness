@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, ChevronDown, Database, FileClock, LockKeyhole, Menu, Trash2, X } from 'lucide-react'
 import { Dashboard, VIEW_ITEMS } from './components/Dashboard'
 import { UploadPanel } from './components/UploadPanel'
+import { InstallApp } from './components/InstallApp'
 import { formatDay, formatShortDay } from './lib/format'
 import { parseNxk } from './lib/nxk'
 import { deleteImport, listImports, loadImportDay, prepareStorage, saveImport } from './lib/storage'
@@ -50,6 +51,8 @@ function HistoryDialog({ dialogRef, imports, currentId, onSelect, onDelete, onIm
           </button>
         </header>
 
+        <InstallApp />
+
         <UploadPanel
           compact
           onImport={onImport}
@@ -85,7 +88,7 @@ function HistoryDialog({ dialogRef, imports, currentId, onSelect, onDelete, onIm
 function EmptyState({ onImport, importState }) {
   return (
     <div className="empty-app">
-      <header className="empty-header"><Brand /></header>
+      <header className="empty-header"><Brand /><InstallApp compact /></header>
       <main className="empty-main">
         <section className="empty-intro">
           <span className="empty-intro__label"><Database size={17} aria-hidden="true" /> Lecteur NXK</span>

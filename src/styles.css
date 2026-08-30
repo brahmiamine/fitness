@@ -137,7 +137,7 @@ p { text-wrap: pretty; }
 
 /* Empty state */
 .empty-app { min-height: 100vh; display: flex; flex-direction: column; }
-.empty-header { padding: 12px 18px; border-bottom: 1px solid var(--line); }
+.empty-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: calc(12px + env(safe-area-inset-top)) 18px 12px; border-bottom: 1px solid var(--line); }
 .empty-main { width: 100%; max-width: 1080px; margin: auto; padding: 38px 18px 48px; }
 .empty-intro { max-width: 700px; margin-bottom: 32px; }
 .empty-intro__label {
@@ -201,8 +201,8 @@ p { text-wrap: pretty; }
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 64px;
-  padding: 8px 14px;
+  min-height: calc(64px + env(safe-area-inset-top));
+  padding: calc(8px + env(safe-area-inset-top)) 14px 8px;
   border-bottom: 1px solid var(--line);
   background: color-mix(in oklch, var(--bg) 94%, transparent);
   backdrop-filter: blur(10px);
@@ -281,6 +281,41 @@ p { text-wrap: pretty; }
 }
 .mobile-nav button span { max-width: 100%; overflow: hidden; font-size: 0.66rem; font-weight: 670; text-overflow: ellipsis; }
 .mobile-nav button.is-active { color: var(--primary); background: var(--primary-soft); }
+
+/* PWA installation */
+.install-app {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--bg);
+  font-size: 0.78rem;
+  font-weight: 720;
+  cursor: pointer;
+}
+.install-app:hover { background: var(--surface); }
+.install-app svg { flex: 0 0 auto; color: var(--primary); }
+.install-app--compact { width: 44px; padding: 0; }
+.install-app--compact span { display: none; }
+.history-panel > .install-app { width: 100%; margin-bottom: 12px; }
+.install-dialog { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: 0; border: 0; color: var(--ink); background: transparent; }
+.install-dialog::backdrop { background: oklch(0.12 0.015 65 / 0.5); }
+.install-guide { position: absolute; inset: auto 0 0; padding: 19px 16px calc(24px + env(safe-area-inset-bottom)); border-radius: 16px 16px 0 0; background: var(--bg); box-shadow: 0 -4px 8px oklch(0.12 0.015 65 / 0.16); }
+.install-guide > header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: start; margin-bottom: 19px; }
+.install-guide > header > span { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; color: var(--primary); background: var(--primary-soft); }
+.install-guide h2 { margin: 1px 0 3px; font-size: 1.08rem; }
+.install-guide header p { margin: 0; color: var(--muted); font-size: 0.75rem; }
+.install-guide ol { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; counter-reset: install-step; background: var(--line); }
+.install-guide li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 9px; min-height: 68px; align-content: center; padding: 11px 12px; counter-increment: install-step; background: var(--surface); }
+.install-guide li::before { content: counter(install-step); display: grid; grid-row: 1 / span 2; place-items: center; width: 26px; height: 26px; border-radius: 50%; color: var(--bg); background: var(--primary); font-size: 0.7rem; font-weight: 760; }
+.install-guide li strong { font-size: 0.79rem; }
+.install-guide li span { grid-column: 2; color: var(--muted); font-size: 0.7rem; line-height: 1.4; }
+.install-guide__note { margin: 13px 0 0; color: var(--muted); font-size: 0.72rem; line-height: 1.45; }
 
 /* Dashboard */
 .dashboard-view { display: flex; flex-direction: column; gap: 18px; }
@@ -686,6 +721,9 @@ p { text-wrap: pretty; }
   .obfuscated-list { grid-template-columns: repeat(2, 1fr); }
   .inventory-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .history-panel { left: auto; width: min(440px, 100%); height: 100%; max-height: 100%; border-radius: 16px 0 0 16px; box-shadow: -4px 0 8px oklch(0.12 0.015 65 / 0.16); }
+  .install-app--compact { width: auto; padding-inline: 13px; }
+  .install-app--compact span { display: inline; }
+  .install-guide { inset: 50% auto auto 50%; width: min(460px, calc(100% - 32px)); padding: 22px; border-radius: 14px; transform: translate(-50%, -50%); box-shadow: 0 4px 8px oklch(0.12 0.015 65 / 0.16); }
   .ai-toolbar { flex-direction: row; align-items: center; justify-content: space-between; }
   .ai-toolbar .segmented-control { width: 270px; }
   .ai-readiness { grid-template-columns: repeat(3, minmax(0, 1fr)); }
