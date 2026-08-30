@@ -1,11 +1,32 @@
 import JSZip from 'jszip'
 import initSqlJs from 'sql.js'
 import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url'
-import { average, localDateKey, localMinutes } from './format'
+import { localDateKey, localMinutes } from './format'
 
-const MAX_ARCHIVE_BYTES = 50 * 1024 * 1024
-const MAX_DATABASE_BYTES = 100 * 1024 * 1024
+const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
+const MAX_DATABASE_BYTES = 512 * 1024 * 1024
 const sqlReady = initSqlJs({ locateFile: () => sqlWasmUrl })
+
+const EXPECTED_COLUMNS = {
+  DailyAppStats: ['dayKey', 'appName', 'totalCount', 'filteredCount'],
+  blood_glucose: ['dateTime', 'tz', 'valueMgDl', 'displayUnit', 'mealRelation', 'mealType', 'mealOffsetMinutes', 'sampleSource', 'carbohydratesGrams', 'insulinUnits', 'insulinType', 'medicationTiming', 'recentExercise', 'deviceName', 'notes'],
+  blood_pressure: ['dateTime', 'tz', 'systolic', 'diastolic', 'heartRate', 'position', 'measurementSite', 'context', 'medicationTiming', 'irregularHeartbeat', 'deviceName', 'notes'],
+  day: ['day', 'steps', 'calories', 'activeMinutes', 'intensiveMinutes', 'pai', 'paiEarned', 'distance', 'hr', 'spo2', 'stress'],
+  gps: ['dateTime', 'tz', 'latitude', 'longitude', 'altitude', 'speed', 'pause'],
+  health_reminder: ['measurementType', 'label', 'hour', 'minute', 'daysMask', 'enabled', 'defaultContext', 'snoozeMinutes'],
+  heart: ['dateTime', 'tz', 'value', 'type'],
+  profile: ['watchName', 'watchType', 'active'],
+  record: ['dateTime', 'tz', 'type', 'steps', 'calories', 'activityType', 'distance', 'hr', 'spo2', 'stress', 'energy'],
+  sleep: ['start', 'end', 'tz', 'day', 'light', 'deep', 'rem', 'awake', 'total', 'turnOver', 'hrAvg', 'spo2Avg', 'userModified'],
+  sleepIntervals: ['start', 'end', 'tz', 'type', 'hrAvg'],
+  spo2: ['dateTime', 'tz', 'value', 'type'],
+  stats: ['statName', 'periodStart', 'periodEnd', 'totalNotifications', 'uniqueNotifications', 'totalVibrationsLength', 'totalVibrations', 'totalWatchfaces', 'uniqueWatchfaces', 'batteryLevelStart', 'batteryLevelEnd'],
+  statsLogs: ['dateTime', 'tz', 'appName', 'batteryLevel'],
+  stress: ['dateTime', 'tz', 'value', 'type'],
+  syncRecord: ['dateTime'],
+  weight: ['dateTime', 'tz', 'value'],
+  workout: ['startDateTime', 'endDateTime', 'tz', 'type', 'heartAvg', 'spo2Avg', 'duration', 'steps', 'title', 'calories', 'distance', 'pause'],
+}
 
 function rowsFromResult(result) {
   if (!result?.length) return []
@@ -28,11 +49,46 @@ function query(database, sql, params = []) {
 }
 
 function hasTable(tables, name) {
-  return tables.has(name)
+  const target = name.toLocaleLowerCase()
+  return [...tables].some((table) => table.toLocaleLowerCase() === target)
 }
 
 function quoteIdentifier(value) {
   return `"${String(value).replaceAll('"', '""')}"`
+}
+
+function actualTableName(tables, name) {
+  const target = name.toLocaleLowerCase()
+  return [...tables].find((table) => table.toLocaleLowerCase() === target) || name
+}
+
+function prepareCompatibleSchema(database, tables) {
+  const addedColumns = []
+  const knownTables = new Set(Object.keys(EXPECTED_COLUMNS).map((name) => name.toLocaleLowerCase()))
+  const unknownTables = [...tables].filter((name) => !knownTables.has(name.toLocaleLowerCase()))
+  const unknownColumns = []
+
+  for (const [logicalName, expectedColumns] of Object.entries(EXPECTED_COLUMNS)) {
+    if (!hasTable(tables, logicalName)) continue
+    const tableName = actualTableName(tables, logicalName)
+    const existing = query(database, `PRAGMA table_info(${quoteIdentifier(tableName)})`)
+    const byLowerName = new Set(existing.map((column) => string(column.name).toLocaleLowerCase()))
+    const expectedLowerNames = new Set(expectedColumns.map((column) => column.toLocaleLowerCase()))
+
+    for (const column of existing) {
+      if (!expectedLowerNames.has(string(column.name).toLocaleLowerCase())) {
+        unknownColumns.push(`${tableName}.${column.name}`)
+      }
+    }
+
+    for (const column of expectedColumns) {
+      if (byLowerName.has(column.toLocaleLowerCase())) continue
+      database.run(`ALTER TABLE ${quoteIdentifier(tableName)} ADD COLUMN ${quoteIdentifier(column)}`)
+      addedColumns.push(`${tableName}.${column}`)
+    }
+  }
+
+  return { addedColumns, unknownTables, unknownColumns }
 }
 
 function tableInventory(database, tables) {
@@ -86,6 +142,16 @@ function haversineDistance(first, second) {
 function summarizeGps(rows) {
   if (!rows.length) return null
   let distance = 0
+  let maximumSpeed = 0
+  let minimumAltitude = Number.POSITIVE_INFINITY
+  let maximumAltitude = Number.NEGATIVE_INFINITY
+  let pausedSamples = 0
+  for (const row of rows) {
+    maximumSpeed = Math.max(maximumSpeed, row.speed)
+    minimumAltitude = Math.min(minimumAltitude, row.altitude)
+    maximumAltitude = Math.max(maximumAltitude, row.altitude)
+    if (row.pause) pausedSamples += 1
+  }
   for (let index = 1; index < rows.length; index += 1) {
     const segment = haversineDistance(rows[index - 1], rows[index])
     if (segment < 100) distance += segment
@@ -102,10 +168,10 @@ function summarizeGps(rows) {
     durationMinutes,
     distance,
     averageSpeed: durationMinutes ? (distance / (durationMinutes * 60)) * 3.6 : 0,
-    maximumSpeed: Math.max(...rows.map((row) => row.speed)) * 3.6,
-    minimumAltitude: Math.min(...rows.map((row) => row.altitude)),
-    maximumAltitude: Math.max(...rows.map((row) => row.altitude)),
-    pausedSamples: rows.filter((row) => row.pause).length,
+    maximumSpeed: maximumSpeed * 3.6,
+    minimumAltitude,
+    maximumAltitude,
+    pausedSamples,
   }
 }
 
@@ -162,7 +228,7 @@ function normalizeRecords(rows) {
   }))
 }
 
-function buildDays(dayRows, records, heart, spo2, stress, sleep) {
+function buildDays(dayRows, records, heart, spo2, stress, sleep, additionalCollections = []) {
   const byDay = new Map()
   for (const row of dayRows) {
     byDay.set(row.day, {
@@ -180,31 +246,68 @@ function buildDays(dayRows, records, heart, spo2, stress, sleep) {
     })
   }
 
-  const allKeys = new Set([
-    ...records.map((row) => row.day),
-    ...heart.map((row) => row.day),
-    ...spo2.map((row) => row.day),
-    ...stress.map((row) => row.day),
-    ...sleep.map((row) => row.day),
-  ])
-  for (const day of allKeys) {
+  const aggregates = new Map()
+  const aggregateFor = (day) => {
+    if (!day) return null
+    if (!aggregates.has(day)) {
+      aggregates.set(day, {
+        steps: 0,
+        calories: 0,
+        distance: 0,
+        heartSum: 0,
+        heartCount: 0,
+        spo2Sum: 0,
+        spo2Count: 0,
+        stressSum: 0,
+        stressCount: 0,
+      })
+    }
+    return aggregates.get(day)
+  }
+  for (const row of records) {
+    const aggregate = aggregateFor(row.day)
+    if (!aggregate) continue
+    aggregate.steps += row.steps
+    aggregate.calories += row.calories
+    aggregate.distance += row.distance
+  }
+  for (const row of heart) {
+    const aggregate = aggregateFor(row.day)
+    if (aggregate && row.type === 0) {
+      aggregate.heartSum += row.value
+      aggregate.heartCount += 1
+    }
+  }
+  for (const row of spo2) {
+    const aggregate = aggregateFor(row.day)
+    if (aggregate) {
+      aggregate.spo2Sum += row.value
+      aggregate.spo2Count += 1
+    }
+  }
+  for (const row of stress) {
+    const aggregate = aggregateFor(row.day)
+    if (aggregate) {
+      aggregate.stressSum += row.value
+      aggregate.stressCount += 1
+    }
+  }
+  for (const row of sleep) aggregateFor(row.day)
+  for (const collection of additionalCollections) {
+    for (const row of collection) aggregateFor(row.day)
+  }
+
+  for (const [day, aggregate] of aggregates) {
     if (!day) continue
-    const dailyRecords = records.filter((row) => row.day === day)
     const existing = byDay.get(day) ?? { day }
-    const recordSteps = dailyRecords.reduce((sum, row) => sum + row.steps, 0)
-    const recordCalories = dailyRecords.reduce((sum, row) => sum + row.calories, 0)
-    const recordDistance = dailyRecords.reduce((sum, row) => sum + row.distance, 0)
-    const heartValues = heart.filter((row) => row.day === day && row.type === 0).map((row) => row.value)
-    const oxygenValues = spo2.filter((row) => row.day === day).map((row) => row.value)
-    const stressValues = stress.filter((row) => row.day === day).map((row) => row.value)
     byDay.set(day, {
       ...existing,
-      steps: existing.steps || recordSteps,
-      calories: existing.calories || recordCalories,
-      distance: existing.distance || recordDistance,
-      heartAverage: existing.heartAverage || average(heartValues),
-      spo2Average: existing.spo2Average || average(oxygenValues),
-      stressAverage: existing.stressAverage || average(stressValues),
+      steps: existing.steps || aggregate.steps,
+      calories: existing.calories || aggregate.calories,
+      distance: existing.distance || aggregate.distance,
+      heartAverage: existing.heartAverage || (aggregate.heartCount ? aggregate.heartSum / aggregate.heartCount : 0),
+      spo2Average: existing.spo2Average || (aggregate.spo2Count ? aggregate.spo2Sum / aggregate.spo2Count : 0),
+      stressAverage: existing.stressAverage || (aggregate.stressCount ? aggregate.stressSum / aggregate.stressCount : 0),
     })
   }
   return [...byDay.values()].sort((a, b) => b.day.localeCompare(a.day))
@@ -217,7 +320,7 @@ async function fingerprint(buffer) {
 
 export async function parseNxk(file, onProgress = () => {}) {
   if (!file) throw new Error('Sélectionnez une sauvegarde NXK.')
-  if (file.size > MAX_ARCHIVE_BYTES) throw new Error('Le fichier dépasse la limite de 50 Mo.')
+  if (file.size > MAX_ARCHIVE_BYTES) throw new Error('Le fichier dépasse la limite de sécurité de 256 Mo pour un traitement local.')
   if (!/\.(nxk|zip)$/i.test(file.name)) throw new Error('Ce fichier ne porte pas l’extension .nxk.')
 
   onProgress('Lecture de la sauvegarde…')
@@ -234,7 +337,7 @@ export async function parseNxk(file, onProgress = () => {}) {
 
   onProgress('Ouverture de la base locale…')
   const databaseBytes = await databaseEntry.async('uint8array')
-  if (databaseBytes.byteLength > MAX_DATABASE_BYTES) throw new Error('La base extraite dépasse la limite de 100 Mo.')
+  if (databaseBytes.byteLength > MAX_DATABASE_BYTES) throw new Error('La base extraite dépasse la limite de sécurité de 512 Mo.')
   const signature = new TextDecoder().decode(databaseBytes.slice(0, 15))
   if (signature !== 'SQLite format 3') throw new Error('La base de données NXK n’est pas valide.')
 
@@ -245,9 +348,11 @@ export async function parseNxk(file, onProgress = () => {}) {
       rowsFromResult(database.exec("SELECT name FROM sqlite_master WHERE type='table'"))
         .map((row) => row.name),
     )
-    if (!hasTable(tables, 'day') && !hasTable(tables, 'record')) {
+    const supportedTables = ['day', 'record', 'heart', 'sleep', 'spo2', 'stress', 'workout', 'weight', 'blood_pressure', 'blood_glucose', 'gps']
+    if (!supportedTables.some((name) => hasTable(tables, name))) {
       throw new Error('Cette sauvegarde NXK utilise une structure non reconnue.')
     }
+    const compatibility = prepareCompatibleSchema(database, tables)
 
     onProgress('Analyse des mesures…')
     const dayRows = hasTable(tables, 'day')
@@ -295,6 +400,7 @@ export async function parseNxk(file, onProgress = () => {}) {
       : []
     const profile = hasTable(tables, 'profile')
       ? query(database, 'SELECT watchName, watchType FROM profile WHERE active = 1 LIMIT 1')[0]
+        || query(database, 'SELECT watchName, watchType FROM profile LIMIT 1')[0]
       : null
     const workouts = hasTable(tables, 'workout')
       ? query(database, 'SELECT startDateTime, endDateTime, tz, type, heartAvg, spo2Avg, duration, steps, title, calories, distance, pause FROM workout ORDER BY startDateTime DESC').map((row) => ({
@@ -406,12 +512,21 @@ export async function parseNxk(file, onProgress = () => {}) {
       ? query(database, 'SELECT dateTime FROM syncRecord ORDER BY dateTime').map((row) => number(row.dateTime)).filter(Boolean)
       : []
     const inventory = tableInventory(database, tables)
+    const gpsSummaries = summarizeGpsByDay(gpsRows)
 
-    const days = buildDays(dayRows, records, heart, spo2, stress, sleep)
+    const days = buildDays(dayRows, records, heart, spo2, stress, sleep, [
+      workouts,
+      gpsSummaries,
+      weights,
+      bloodPressure,
+      bloodGlucose,
+      notifications,
+      battery,
+    ])
     if (!days.length) throw new Error('Aucune journée fitness exploitable n’a été trouvée.')
 
     return {
-      schemaVersion: 2,
+      schemaVersion: 3,
       id,
       fileName: file.name,
       fileSize: file.size,
@@ -427,7 +542,7 @@ export async function parseNxk(file, onProgress = () => {}) {
       sleep,
       sleepIntervals,
       workouts,
-      gps: summarizeGpsByDay(gpsRows),
+      gps: gpsSummaries,
       weights,
       bloodPressure,
       bloodGlucose,
@@ -446,6 +561,7 @@ export async function parseNxk(file, onProgress = () => {}) {
         firstSync: syncRows[0] || 0,
         lastSync: syncRows.at(-1) || 0,
         protectedFields: ['coordonnées GPS brutes', 'adresse MAC', 'jetons et paramètres secrets'],
+        compatibility,
       },
     }
   } finally {

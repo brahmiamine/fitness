@@ -4,6 +4,16 @@ Application React/Vite mobile-first qui ouvre les sauvegardes `.nxk` de Notify f
 
 Le lecteur couvre également les intervalles de sommeil, les relevés cardiaques périodiques et rapprochés, les mesures minute par minute, les séances, la batterie, les synchronisations, les compteurs de notifications, les mesures manuelles (poids, tension, glycémie), les rappels santé et l’inventaire complet des tables SQLite.
 
+## Compatibilité et grands historiques
+
+- Le schéma SQLite est découvert à l’import : les colonnes absentes sont neutralisées localement et les colonnes nouvelles restent signalées dans le catalogue au lieu de casser tout l’import.
+- Les sauvegardes contenant seulement une partie des domaines santé restent acceptées dès qu’une table exploitable est présente.
+- Les calculs quotidiens sont construits en un seul passage sur les mesures, sans rescanner toutes les années pour chaque journée.
+- IndexedDB conserve un manifeste léger et une partition par jour. Changer de date ne charge que les données détaillées de cette journée.
+- Les graphiques limitent automatiquement le nombre de points rendus et les tableaux affichent les lignes progressivement.
+- L’espace disponible est vérifié avant l’import. La limite de sécurité est de 256 Mo pour l’archive et 512 Mo pour la base SQLite extraite ; la capacité réelle dépend de la mémoire et du quota du navigateur.
+- Le modèle de données interne est versionné (`schemaVersion: 3`) afin que les futurs adaptateurs puissent migrer les imports sans perdre les sources.
+
 ## Confidentialité
 
 - Le fichier est décompressé dans le navigateur avec JSZip.
@@ -12,6 +22,7 @@ Le lecteur couvre également les intervalles de sommeil, les relevés cardiaques
 - Les coordonnées GPS brutes sont agrégées en mémoire puis écartées ; seuls distance, durée, vitesse et altitude sont conservés.
 - Les adresses MAC, jetons et paramètres secrets ne sont pas extraits.
 - L’historique reste dans IndexedDB, sur l’appareil utilisé.
+- Les mesures détaillées sont compartimentées par journée ; l’archive SQLite originale n’est pas conservée.
 
 ## Développement
 

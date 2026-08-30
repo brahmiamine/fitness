@@ -4,7 +4,7 @@ import { Dashboard, VIEW_ITEMS } from './components/Dashboard'
 import { UploadPanel } from './components/UploadPanel'
 import { formatDay, formatShortDay } from './lib/format'
 import { parseNxk } from './lib/nxk'
-import { deleteImport, listImports, saveImport } from './lib/storage'
+import { deleteImport, listImports, loadImportDay, prepareStorage, saveImport } from './lib/storage'
 
 function Brand() {
   return (
@@ -109,6 +109,8 @@ export default function App() {
   const [day, setDay] = useState('')
   const [view, setView] = useState('overview')
   const [loading, setLoading] = useState(true)
+  const [dataset, setDataset] = useState(null)
+  const [dayLoading, setDayLoading] = useState(false)
   const [importState, setImportState] = useState({ busy: false, progress: '', error: '' })
   const historyRef = useRef(null)
 
@@ -133,9 +135,27 @@ export default function App() {
     if (!current.days.some((item) => item.day === day)) setDay(current.days[0]?.day || '')
   }, [current, day])
 
+  useEffect(() => {
+    if (!current || !day) return
+    let active = true
+    setDayLoading(true)
+    loadImportDay(current, day)
+      .then((loaded) => {
+        if (active) setDataset(loaded)
+      })
+      .catch(() => {
+        if (active) setImportState((state) => ({ ...state, error: 'Impossible de charger cette journée depuis l’historique local.' }))
+      })
+      .finally(() => {
+        if (active) setDayLoading(false)
+      })
+    return () => { active = false }
+  }, [current?.id, current?.importedAt, day])
+
   async function handleImport(file) {
     setImportState({ busy: true, progress: 'Lecture du fichier…', error: '' })
     try {
+      await prepareStorage(file.size)
       const dataset = await parseNxk(file, (progress) => setImportState({ busy: true, progress, error: '' }))
       await saveImport(dataset)
       const items = await listImports()
@@ -195,8 +215,10 @@ export default function App() {
           </button>
         </header>
 
-        <main className="main-content" id="main-content">
-          <Dashboard dataset={current} day={day} view={view} />
+        <main className="main-content" id="main-content" aria-busy={dayLoading}>
+          {dataset && dataset.id === current.id && (dataset.storageMode !== 'day-partitioned' || dataset.day === day)
+            ? <Dashboard dataset={dataset} day={day} view={view} />
+            : <div className="app-loading app-loading--inline" role="status"><span className="loader" aria-hidden="true" /> Chargement de la journée…</div>}
         </main>
       </div>
 

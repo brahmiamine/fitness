@@ -107,6 +107,7 @@ function InsightList({ insights }) {
 }
 
 function DataQuality({ dataset, summary }) {
+  const compatibility = dataset.metadata?.compatibility
   return (
     <details className="data-quality">
       <summary>Comprendre la qualité de ces données</summary>
@@ -123,6 +124,8 @@ function DataQuality({ dataset, summary }) {
           <div><dt>Toutes lignes SQLite</dt><dd>{formatNumber(dataset.metadata?.totalRows || dataset.metadata?.recordCount || 0)}</dd></div>
           <div><dt>Points GPS agrégés puis écartés</dt><dd>{formatNumber(dataset.metadata?.gpsPointsDiscarded || 0)}</dd></div>
           <div><dt>Tables détectées</dt><dd>{formatNumber(dataset.metadata?.tableCount || 0)}</dd></div>
+          <div><dt>Colonnes adaptées au schéma</dt><dd>{formatNumber(compatibility?.addedColumns?.length || 0)}</dd></div>
+          <div><dt>Champs nouveaux conservés au catalogue</dt><dd>{formatNumber(compatibility?.unknownColumns?.length || 0)}</dd></div>
         </dl>
       </div>
     </details>
@@ -130,7 +133,7 @@ function DataQuality({ dataset, summary }) {
 }
 
 function ArchiveOverview({ dataset }) {
-  const notifications = dataset.notifications || []
+  const notifications = dataset.metadata?.notificationApps || dataset.notifications || []
   const battery = dataset.battery || []
   const statistics = dataset.statistics || []
   const lastStats = statistics.find((item) => item.name === 'last') || statistics[0]
@@ -140,11 +143,11 @@ function ArchiveOverview({ dataset }) {
     <>
       <section className="content-section">
         <SectionHeading icon={Watch} title="Appareil et sauvegarde" description="Provenance, volume et couverture technique de l’import." />
-        {dataset.schemaVersion !== 2 && <p className="schema-warning">Cette sauvegarde a été importée avec l’ancienne version du lecteur. Réimportez le fichier NXK pour afficher l’inventaire complet.</p>}
+        {dataset.schemaVersion < 3 && <p className="schema-warning">Cette sauvegarde a été importée avec l’ancienne version du lecteur. Réimportez le fichier NXK pour profiter du stockage optimisé pour plusieurs années.</p>}
         <dl className="fact-grid">
           <div><Watch size={18} aria-hidden="true" /><dt>Appareil</dt><dd>{dataset.device?.name || 'Non identifié'}</dd></div>
           <div><FileArchive size={18} aria-hidden="true" /><dt>Archive</dt><dd>{dataset.fileName}<small>{formatBytes(dataset.fileSize)}</small></dd></div>
-          <div><Database size={18} aria-hidden="true" /><dt>Base SQLite</dt><dd>{formatNumber(dataset.metadata?.totalRows || 0)} lignes<small>{formatNumber(dataset.metadata?.tableCount || 0)} tables</small></dd></div>
+          <div><Database size={18} aria-hidden="true" /><dt>Base SQLite</dt><dd>{formatNumber(dataset.metadata?.totalRows || 0)} lignes<small>{formatNumber(dataset.metadata?.coverage?.dayCount || dataset.days.length)} jours · {formatNumber(dataset.metadata?.tableCount || 0)} tables</small></dd></div>
           <div><RefreshCw size={18} aria-hidden="true" /><dt>Synchronisations</dt><dd>{formatNumber(dataset.metadata?.syncCount || 0)}<small>dernière : {formatDateTime(dataset.metadata?.lastSync || 0)}</small></dd></div>
         </dl>
       </section>
