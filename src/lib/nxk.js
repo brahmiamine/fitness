@@ -198,7 +198,13 @@ export async function parseNxk(file, onProgress = () => {}) {
 
   onProgress('Lecture de la sauvegarde…')
   const fileBuffer = await file.arrayBuffer()
-  const [id, zip] = await Promise.all([fingerprint(fileBuffer), JSZip.loadAsync(fileBuffer)])
+  let id
+  let zip
+  try {
+    ;[id, zip] = await Promise.all([fingerprint(fileBuffer), JSZip.loadAsync(fileBuffer)])
+  } catch {
+    throw new Error('Le fichier NXK est illisible ou l’archive est endommagée.')
+  }
   const databaseEntry = Object.values(zip.files).find((entry) => /(^|\/)backup\.db$/i.test(entry.name))
   if (!databaseEntry) throw new Error('La sauvegarde ne contient pas de base backup.db.')
 

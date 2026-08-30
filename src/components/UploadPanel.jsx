@@ -41,7 +41,11 @@ export function UploadPanel({ onImport, busy, progress, error, compact = false }
           className="visually-hidden"
           type="file"
           accept=".nxk,.zip,application/zip"
-          onChange={(event) => submit(event.target.files?.[0])}
+          onChange={(event) => {
+            const [file] = event.target.files || []
+            event.target.value = ''
+            submit(file)
+          }}
           disabled={busy}
         />
         <button className="button button--primary" type="button" onClick={() => inputRef.current?.click()} disabled={busy}>
