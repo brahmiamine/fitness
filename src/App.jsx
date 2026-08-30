@@ -224,6 +224,7 @@ export default function App() {
                 dataset={dataset}
                 day={day}
                 view={view}
+                history={imports}
                 privateGps={privateGps.importId === current.id ? privateGps.rows.filter((row) => row.day === day) : []}
               />
             : <div className="app-loading app-loading--inline" role="status"><span className="loader" aria-hidden="true" /> Chargement de la journée…</div>}

@@ -37,6 +37,7 @@ import { LocalGpsMap } from './LocalGpsMap'
 import { MultiDayComparison } from './MultiDayComparison'
 import { QualityReport } from './QualityReport'
 import { TechnicalMode } from './TechnicalMode'
+import { IntelligenceReport } from './IntelligenceReport'
 
 const APP_LABELS = {
   'com.google.android.gm': 'Gmail',
@@ -192,7 +193,7 @@ function ArchiveOverview({ dataset }) {
   )
 }
 
-function Overview({ dataset, day, summary }) {
+function Overview({ dataset, day, summary, history }) {
   const insights = buildInsights(summary)
   return (
     <div className="dashboard-view">
@@ -214,6 +215,7 @@ function Overview({ dataset, day, summary }) {
 
       <QualityReport dataset={dataset} day={day} />
       <MultiDayComparison dataset={dataset} day={day} />
+      <IntelligenceReport dataset={dataset} day={day} imports={history} currentSummary={summary} />
 
       <section className="content-section content-section--timeline">
         <SectionHeading icon={Activity} title="Ligne de la journée" description="Les mesures replacées sur la même période de 24 heures." />
@@ -547,10 +549,10 @@ export const VIEW_ITEMS = [
   { id: 'activity', label: 'Activité', icon: Footprints },
 ]
 
-export function Dashboard({ dataset, day, view, privateGps = [] }) {
+export function Dashboard({ dataset, day, view, privateGps = [], history = [] }) {
   const summary = summarizeDay(dataset, day)
   const views = {
-    overview: <Overview dataset={dataset} day={day} summary={summary} />,
+    overview: <Overview dataset={dataset} day={day} summary={summary} history={history} />,
     sleep: <SleepView dataset={dataset} day={day} summary={summary} />,
     heart: <HeartView dataset={dataset} day={day} summary={summary} />,
     vitals: <VitalsView dataset={dataset} day={day} summary={summary} />,

@@ -19,6 +19,15 @@ Le lecteur couvre également les intervalles de sommeil, les relevés cardiaques
 - Le mode technique expose uniquement la structure et la taille des blocs obfusqués, jamais leurs valeurs, jetons ou secrets.
 - Le modèle de données interne est versionné (`schemaVersion: 4`) afin que les futurs adaptateurs puissent migrer les imports sans perdre les sources.
 
+## Analyse intelligente locale
+
+- Les journées de tous les backups conservés sont consolidées par date ; en cas de doublon, l’import le plus récent est utilisé.
+- Le profil personnel compare la journée sélectionnée à la médiane et aux quartiles de l’utilisateur. Il attend au moins 7 journées antérieures avant de signaler une variation.
+- Les associations entre sommeil, activité, cœur et stress utilisent une corrélation explicite à partir de 10 journées comparables. Elles sont présentées comme des associations, jamais comme des causes.
+- Les projections sont limitées à l’activité et au sommeil, nécessitent au moins 14 journées et affichent un intervalle indicatif.
+- Un score de confiance combine qualité technique, profondeur d’historique, complétude et régularité. Les alertes personnelles sont suspendues si la qualité de la journée est insuffisante.
+- Le moteur statistique est déterministe, explicable et entièrement exécuté dans le navigateur : aucun modèle distant, compte, abonnement ou clé API.
+
 ## Confidentialité
 
 - Le fichier est décompressé dans le navigateur avec JSZip.
@@ -28,6 +37,7 @@ Le lecteur couvre également les intervalles de sommeil, les relevés cardiaques
 - Les adresses MAC, jetons et paramètres secrets ne sont pas extraits.
 - L’historique reste dans IndexedDB, sur l’appareil utilisé.
 - Les mesures détaillées sont compartimentées par journée ; l’archive SQLite originale n’est pas conservée.
+- Les résultats intelligents sont recalculés à la demande et ne sont ni envoyés ni enregistrés séparément.
 
 ## Développement
 
