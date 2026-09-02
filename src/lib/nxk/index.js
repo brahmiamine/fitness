@@ -1,353 +1,22 @@
 import JSZip from 'jszip'
 import initSqlJs from 'sql.js'
 import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url'
-import { localDateKey, localMinutes } from './format'
-import { buildQualityReport } from './quality'
+import { localDateKey, localMinutes } from '../format'
+import { buildQualityReport } from '../quality'
+import { parseAchievements } from '../achievements'
+import { parseAppStats } from '../appStats'
+import { buildDays } from './days'
+import { summarizeGpsByDay } from './geo'
+import { normalizeRecords, normalizeSleep, normalizeTimedRows } from './records'
+import { fieldSummary, prepareCompatibleSchema, tableInventory, technicalSchemaCatalog } from './schema'
+import { hasTable, number, query, rowsFromResult, string } from './sqlHelpers'
 
 const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
 const MAX_DATABASE_BYTES = 512 * 1024 * 1024
 const sqlReady = initSqlJs({ locateFile: () => sqlWasmUrl })
 
-const EXPECTED_COLUMNS = {
-  DailyAppStats: ['dayKey', 'appName', 'totalCount', 'filteredCount'],
-  blood_glucose: ['dateTime', 'tz', 'valueMgDl', 'displayUnit', 'mealRelation', 'mealType', 'mealOffsetMinutes', 'sampleSource', 'carbohydratesGrams', 'insulinUnits', 'insulinType', 'medicationTiming', 'recentExercise', 'deviceName', 'notes'],
-  blood_pressure: ['dateTime', 'tz', 'systolic', 'diastolic', 'heartRate', 'position', 'measurementSite', 'context', 'medicationTiming', 'irregularHeartbeat', 'deviceName', 'notes'],
-  day: ['day', 'steps', 'calories', 'activeMinutes', 'intensiveMinutes', 'pai', 'paiEarned', 'distance', 'hr', 'spo2', 'stress'],
-  gps: ['dateTime', 'tz', 'latitude', 'longitude', 'altitude', 'speed', 'pause'],
-  health_reminder: ['measurementType', 'label', 'hour', 'minute', 'daysMask', 'enabled', 'defaultContext', 'snoozeMinutes'],
-  heart: ['dateTime', 'tz', 'value', 'type'],
-  profile: ['watchName', 'watchType', 'active'],
-  record: ['dateTime', 'tz', 'type', 'steps', 'calories', 'activityType', 'distance', 'hr', 'spo2', 'stress', 'energy'],
-  sleep: ['start', 'end', 'tz', 'day', 'light', 'deep', 'rem', 'awake', 'total', 'turnOver', 'hrAvg', 'spo2Avg', 'userModified'],
-  sleepIntervals: ['start', 'end', 'tz', 'type', 'hrAvg'],
-  spo2: ['dateTime', 'tz', 'value', 'type'],
-  stats: ['statName', 'periodStart', 'periodEnd', 'totalNotifications', 'uniqueNotifications', 'totalVibrationsLength', 'totalVibrations', 'totalWatchfaces', 'uniqueWatchfaces', 'batteryLevelStart', 'batteryLevelEnd'],
-  statsLogs: ['dateTime', 'tz', 'appName', 'batteryLevel'],
-  stress: ['dateTime', 'tz', 'value', 'type'],
-  syncRecord: ['dateTime'],
-  weight: ['dateTime', 'tz', 'value'],
-  workout: ['startDateTime', 'endDateTime', 'tz', 'type', 'heartAvg', 'spo2Avg', 'duration', 'steps', 'title', 'calories', 'distance', 'pause'],
-}
-
-function rowsFromResult(result) {
-  if (!result?.length) return []
-  const [{ columns, values }] = result
-  return values.map((valuesRow) =>
-    Object.fromEntries(columns.map((column, index) => [column, valuesRow[index]])),
-  )
-}
-
-function query(database, sql, params = []) {
-  const statement = database.prepare(sql)
-  try {
-    statement.bind(params)
-    const rows = []
-    while (statement.step()) rows.push(statement.getAsObject())
-    return rows
-  } finally {
-    statement.free()
-  }
-}
-
-function hasTable(tables, name) {
-  const target = name.toLocaleLowerCase()
-  return [...tables].some((table) => table.toLocaleLowerCase() === target)
-}
-
-function quoteIdentifier(value) {
-  return `"${String(value).replaceAll('"', '""')}"`
-}
-
-function actualTableName(tables, name) {
-  const target = name.toLocaleLowerCase()
-  return [...tables].find((table) => table.toLocaleLowerCase() === target) || name
-}
-
-function prepareCompatibleSchema(database, tables) {
-  const addedColumns = []
-  const knownTables = new Set(Object.keys(EXPECTED_COLUMNS).map((name) => name.toLocaleLowerCase()))
-  const unknownTables = [...tables].filter((name) => !knownTables.has(name.toLocaleLowerCase()))
-  const unknownColumns = []
-
-  for (const [logicalName, expectedColumns] of Object.entries(EXPECTED_COLUMNS)) {
-    if (!hasTable(tables, logicalName)) continue
-    const tableName = actualTableName(tables, logicalName)
-    const existing = query(database, `PRAGMA table_info(${quoteIdentifier(tableName)})`)
-    const byLowerName = new Set(existing.map((column) => string(column.name).toLocaleLowerCase()))
-    const expectedLowerNames = new Set(expectedColumns.map((column) => column.toLocaleLowerCase()))
-
-    for (const column of existing) {
-      if (!expectedLowerNames.has(string(column.name).toLocaleLowerCase())) {
-        unknownColumns.push(`${tableName}.${column.name}`)
-      }
-    }
-
-    for (const column of expectedColumns) {
-      if (byLowerName.has(column.toLocaleLowerCase())) continue
-      database.run(`ALTER TABLE ${quoteIdentifier(tableName)} ADD COLUMN ${quoteIdentifier(column)}`)
-      addedColumns.push(`${tableName}.${column}`)
-    }
-  }
-
-  return { addedColumns, unknownTables, unknownColumns }
-}
-
-function tableInventory(database, tables) {
-  return [...tables]
-    .sort((a, b) => a.localeCompare(b))
-    .map((name) => ({
-      name,
-      rows: number(query(database, `SELECT COUNT(*) AS count FROM ${quoteIdentifier(name)}`)[0]?.count),
-    }))
-}
-
-function technicalSchemaCatalog(database, tables, compatibility) {
-  const adapted = new Set(compatibility.addedColumns)
-  return [...tables].sort((a, b) => a.localeCompare(b)).map((table) => ({
-    table,
-    columns: query(database, `PRAGMA table_info(${quoteIdentifier(table)})`).map((column) => ({
-      name: string(column.name),
-      type: string(column.type || 'non déclaré'),
-      nullable: !Boolean(column.notnull),
-      primaryKey: Boolean(column.pk),
-      adapted: adapted.has(`${table}.${column.name}`),
-      protected: /token|secret|password|passwd|mac|setting|raw|info|data/i.test(string(column.name)) || table === 'appSetting',
-    })),
-  }))
-}
-
-function fieldSummary(database, tables, table, column, label) {
-  if (!hasTable(tables, table)) return null
-  const tableName = actualTableName(tables, table)
-  const columns = query(database, `PRAGMA table_info(${quoteIdentifier(tableName)})`)
-  const actualColumn = columns.find((item) => string(item.name).toLocaleLowerCase() === column.toLocaleLowerCase())?.name
-  if (!actualColumn) return null
-  const [summary] = query(
-    database,
-    `SELECT COUNT(${quoteIdentifier(actualColumn)}) AS count, COALESCE(SUM(length(${quoteIdentifier(actualColumn)})), 0) AS totalBytes, COALESCE(MAX(length(${quoteIdentifier(actualColumn)})), 0) AS maximumBytes, typeof(${quoteIdentifier(actualColumn)}) AS storageType FROM ${quoteIdentifier(tableName)}`,
-  )
-  return {
-    source: `${tableName}.${actualColumn}`,
-    label,
-    count: number(summary?.count),
-    totalBytes: number(summary?.totalBytes),
-    maximumBytes: number(summary?.maximumBytes),
-    storageType: string(summary?.storageType || 'inconnu'),
-    decoded: false,
-    protected: true,
-  }
-}
-
-function number(value, fallback = 0) {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : fallback
-}
-
-function string(value) {
-  return value == null ? '' : String(value)
-}
-
 function sanitizeDeviceName(value) {
   return string(value || 'Bracelet connecté').replace(/\s+[0-9a-f]{4}$/i, '').trim()
-}
-
-function normalizeTimedRows(rows) {
-  return rows
-    .map((row) => ({
-      ...row,
-      dateTime: number(row.dateTime),
-      tz: number(row.tz),
-      value: number(row.value),
-      type: number(row.type),
-      day: localDateKey(number(row.dateTime), number(row.tz)),
-    }))
-    .filter((row) => row.dateTime > 0)
-}
-
-function haversineDistance(first, second) {
-  const radians = (value) => (value * Math.PI) / 180
-  const earthRadius = 6_371_000
-  const lat1 = radians(first.latitude)
-  const lat2 = radians(second.latitude)
-  const deltaLat = lat2 - lat1
-  const deltaLng = radians(second.longitude - first.longitude)
-  const value =
-    Math.sin(deltaLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) ** 2
-  return earthRadius * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value))
-}
-
-function summarizeGps(rows) {
-  if (!rows.length) return null
-  let distance = 0
-  let maximumSpeed = 0
-  let minimumAltitude = Number.POSITIVE_INFINITY
-  let maximumAltitude = Number.NEGATIVE_INFINITY
-  let pausedSamples = 0
-  for (const row of rows) {
-    maximumSpeed = Math.max(maximumSpeed, row.speed)
-    minimumAltitude = Math.min(minimumAltitude, row.altitude)
-    maximumAltitude = Math.max(maximumAltitude, row.altitude)
-    if (row.pause) pausedSamples += 1
-  }
-  for (let index = 1; index < rows.length; index += 1) {
-    const segment = haversineDistance(rows[index - 1], rows[index])
-    if (segment < 100) distance += segment
-  }
-  const start = rows[0]
-  const end = rows.at(-1)
-  const durationMinutes = Math.max(0, (end.dateTime - start.dateTime) / 60_000)
-  return {
-    day: localDateKey(start.dateTime, start.tz),
-    sampleCount: rows.length,
-    start: start.dateTime,
-    end: end.dateTime,
-    timezone: start.tz,
-    durationMinutes,
-    distance,
-    averageSpeed: durationMinutes ? (distance / (durationMinutes * 60)) * 3.6 : 0,
-    maximumSpeed: maximumSpeed * 3.6,
-    minimumAltitude,
-    maximumAltitude,
-    pausedSamples,
-  }
-}
-
-function summarizeGpsByDay(rows) {
-  const byDay = new Map()
-  for (const row of rows) {
-    const day = localDateKey(row.dateTime, row.tz)
-    if (!byDay.has(day)) byDay.set(day, [])
-    byDay.get(day).push(row)
-  }
-  return [...byDay.values()].map(summarizeGps).filter(Boolean)
-}
-
-function normalizeSleep(rows) {
-  return rows.map((row) => {
-    const light = number(row.light)
-    const deep = number(row.deep)
-    const rem = number(row.rem)
-    const awake = number(row.awake)
-    const asleep = light + deep + rem
-    return {
-      start: number(row.start),
-      end: number(row.end),
-      tz: number(row.tz),
-      day: row.day || localDateKey(number(row.end), number(row.tz)),
-      light,
-      deep,
-      rem,
-      awake,
-      total: number(row.total, asleep + awake),
-      asleep,
-      heartAverage: number(row.hrAvg),
-      spo2Average: number(row.spo2Avg),
-      modified: Boolean(row.userModified),
-      turnOvers: number(row.turnOver),
-    }
-  })
-}
-
-function normalizeRecords(rows) {
-  return rows.map((row) => ({
-    dateTime: number(row.dateTime),
-    tz: number(row.tz),
-    day: localDateKey(number(row.dateTime), number(row.tz)),
-    type: number(row.type),
-    steps: number(row.steps),
-    calories: number(row.calories),
-    activityType: number(row.activityType),
-    distance: number(row.distance),
-    heartRate: number(row.hr),
-    spo2: number(row.spo2),
-    stress: number(row.stress),
-    energy: number(row.energy),
-  }))
-}
-
-function buildDays(dayRows, records, heart, spo2, stress, sleep, additionalCollections = []) {
-  const byDay = new Map()
-  for (const row of dayRows) {
-    byDay.set(row.day, {
-      day: row.day,
-      steps: number(row.steps),
-      calories: number(row.calories),
-      activeMinutes: number(row.activeMinutes),
-      intensiveMinutes: number(row.intensiveMinutes),
-      pai: number(row.pai),
-      paiEarned: number(row.paiEarned),
-      distance: number(row.distance),
-      heartAverage: number(row.hr),
-      spo2Average: number(row.spo2),
-      stressAverage: number(row.stress),
-    })
-  }
-
-  const aggregates = new Map()
-  const aggregateFor = (day) => {
-    if (!day) return null
-    if (!aggregates.has(day)) {
-      aggregates.set(day, {
-        steps: 0,
-        calories: 0,
-        distance: 0,
-        heartSum: 0,
-        heartCount: 0,
-        spo2Sum: 0,
-        stressSum: 0,
-        stressCount: 0,
-      })
-    }
-    return aggregates.get(day)
-  }
-  for (const row of records) {
-    const aggregate = aggregateFor(row.day)
-    if (!aggregate) continue
-    aggregate.steps += row.steps
-    aggregate.calories += row.calories
-    aggregate.distance += row.distance
-  }
-  for (const row of heart) {
-    const aggregate = aggregateFor(row.day)
-    if (aggregate && row.type === 0) {
-      aggregate.heartSum += row.value
-      aggregate.heartCount += 1
-    }
-  }
-  for (const row of spo2) {
-    const aggregate = aggregateFor(row.day)
-    if (aggregate) {
-      aggregate.spo2Sum += row.value
-      aggregate.spo2Count += 1
-    }
-  }
-  for (const row of stress) {
-    const aggregate = aggregateFor(row.day)
-    if (aggregate) {
-      aggregate.stressSum += row.value
-      aggregate.stressCount += 1
-    }
-  }
-  for (const row of sleep) aggregateFor(row.day)
-  for (const collection of additionalCollections) {
-    for (const row of collection) aggregateFor(row.day)
-  }
-
-  for (const [day, aggregate] of aggregates) {
-    if (!day) continue
-    const existing = byDay.get(day) ?? { day }
-    byDay.set(day, {
-      ...existing,
-      steps: existing.steps || aggregate.steps,
-      calories: existing.calories || aggregate.calories,
-      distance: existing.distance || aggregate.distance,
-      heartAverage: existing.heartAverage || (aggregate.heartCount ? aggregate.heartSum / aggregate.heartCount : 0),
-      spo2Average: existing.spo2Average || (aggregate.spo2Count ? aggregate.spo2Sum / aggregate.spo2Count : 0),
-      stressAverage: existing.stressAverage || (aggregate.stressCount ? aggregate.stressSum / aggregate.stressCount : 0),
-    })
-  }
-  return [...byDay.values()].sort((a, b) => b.day.localeCompare(a.day))
 }
 
 async function fingerprint(buffer) {
@@ -535,6 +204,14 @@ export async function parseNxk(file, onProgress = () => {}) {
           filtered: number(row.filteredCount),
         }))
       : []
+    const appStatsRows = hasTable(tables, 'statsApp')
+      ? query(database, 'SELECT name, type, notificationCounter, notificationTotalCounter FROM statsApp')
+      : []
+    const appStats = parseAppStats(appStatsRows)
+    const achievementRows = hasTable(tables, 'appSetting')
+      ? query(database, 'SELECT name, value FROM appSetting')
+      : []
+    const achievements = parseAchievements(achievementRows)
     const battery = hasTable(tables, 'statsLogs')
       ? query(database, "SELECT dateTime, tz, batteryLevel FROM statsLogs WHERE appName = 'battery' AND batteryLevel > 0 ORDER BY dateTime").map((row) => ({
           dateTime: number(row.dateTime),
@@ -575,11 +252,11 @@ export async function parseNxk(file, onProgress = () => {}) {
       policy: {
         valuesExtracted: false,
         secretsDisplayed: false,
-        description: 'Seules la structure, le type et la taille sont exposés. Les contenus, jetons et identifiants restent masqués.',
+        description: 'Seules la structure, le type et la taille sont exposés. Les contenus, jetons et identifiants restent masqués. Dans appSetting, seules les clés de succès débloqués (préfixe ach-) sont lues ; jetons et réglages internes ne sont jamais extraits.',
       },
     }
 
-    const days = buildDays(dayRows, records, heart, spo2, stress, sleep, [
+    const days = buildDays(dayRows, records, heart, spo2, stress, sleep, {
       workouts,
       gpsSummaries,
       weights,
@@ -587,11 +264,11 @@ export async function parseNxk(file, onProgress = () => {}) {
       bloodGlucose,
       notifications,
       battery,
-    ])
+    })
     if (!days.length) throw new Error('Aucune journée fitness exploitable n’a été trouvée.')
 
     const dataset = {
-      schemaVersion: 4,
+      schemaVersion: 5,
       id,
       fileName: file.name,
       fileSize: file.size,
@@ -625,6 +302,8 @@ export async function parseNxk(file, onProgress = () => {}) {
       bloodGlucose,
       reminders,
       notifications,
+      appStats,
+      achievements,
       battery,
       statistics,
       technical,

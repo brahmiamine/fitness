@@ -2,7 +2,7 @@
 
 Application React/Vite mobile-first qui ouvre les sauvegardes `.nxk` de Notify for Xiaomi et présente les données d’activité, de sommeil, de fréquence cardiaque, de SpO₂ et de stress.
 
-Le lecteur couvre également les intervalles de sommeil, les relevés cardiaques périodiques et rapprochés, les mesures minute par minute, les séances, la batterie, les synchronisations, les compteurs de notifications, les mesures manuelles (poids, tension, glycémie), les rappels santé et l’inventaire complet des tables SQLite.
+Le lecteur couvre également les intervalles de sommeil, les relevés cardiaques périodiques et rapprochés, les mesures minute par minute, les séances, la batterie, les synchronisations, les compteurs de notifications (par jour et cumulés par application), les mesures manuelles (poids, tension, glycémie) avec leur tendance multi-jours, les rappels santé, les succès débloqués sur le bracelet et l’inventaire complet des tables SQLite.
 
 ## Compatibilité et grands historiques
 
@@ -17,7 +17,7 @@ Le lecteur couvre également les intervalles de sommeil, les relevés cardiaques
 - Les courbes proposent une lecture tactile, à la souris et au clavier ; chaque tableau dispose d’une recherche et d’un tri local.
 - La carte GPS est facultative et éphémère : la trace brute disparaît au rechargement et n’entre jamais dans IndexedDB.
 - Le mode technique expose uniquement la structure et la taille des blocs obfusqués, jamais leurs valeurs, jetons ou secrets.
-- Le modèle de données interne est versionné (`schemaVersion: 4`) afin que les futurs adaptateurs puissent migrer les imports sans perdre les sources.
+- Le modèle de données interne est versionné (`schemaVersion: 5`) afin que les futurs adaptateurs puissent migrer les imports sans perdre les sources.
 
 ## Analyse intelligente locale
 
@@ -34,7 +34,7 @@ Le lecteur couvre également les intervalles de sommeil, les relevés cardiaques
 - La base SQLite est lue localement avec sql.js/WebAssembly.
 - Aucun fichier, trajet ou identifiant de montre n’est envoyé vers un serveur.
 - Les coordonnées GPS brutes restent uniquement en mémoire volatile pour la carte facultative ; elles ne sont jamais enregistrées et disparaissent au rechargement. Seuls distance, durée, vitesse et altitude sont conservés.
-- Les adresses MAC, jetons et paramètres secrets ne sont pas extraits.
+- Les adresses MAC, jetons et paramètres secrets ne sont pas extraits. Dans les réglages internes de Notify, seules les clés de succès débloqués (préfixe `ach-`) sont lues ; les jetons de services tiers éventuellement présents dans cette même table ne sont jamais lus.
 - L’historique reste dans IndexedDB, sur l’appareil utilisé.
 - Les mesures détaillées sont compartimentées par journée ; l’archive SQLite originale n’est pas conservée.
 - Les résultats intelligents sont recalculés à la demande et ne sont ni envoyés ni enregistrés séparément.
