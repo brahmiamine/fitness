@@ -73,6 +73,18 @@ export function formatDateTime(timestamp, timezoneSeconds = 0) {
   }).format(new Date(timestamp + timezoneSeconds * 1000))
 }
 
+export function formatLocalDateTime(timestamp) {
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return '—'
+  return new Intl.DateTimeFormat('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(timestamp))
+}
+
 export function formatDuration(minutes) {
   if (!Number.isFinite(minutes) || minutes < 0) return '—'
   const rounded = Math.round(minutes)

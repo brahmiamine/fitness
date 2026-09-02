@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, ChevronDown, Database, FileClock, LockKeyhole, Menu, Trash2, X } from 'lucide-react'
-import { Dashboard, VIEW_ITEMS } from './components/Dashboard'
+import { Dashboard, VIEW_ITEMS } from './components/dashboard'
 import { UploadPanel } from './components/UploadPanel'
 import { InstallApp } from './components/InstallApp'
 import { formatDay, formatShortDay } from './lib/format'

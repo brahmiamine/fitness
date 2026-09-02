@@ -9,6 +9,9 @@ const METRICS = {
   heart: { label: 'Cœur moyen', unit: 'bpm', value: (row) => row.heartAverage || 0, available: (row) => row.heartSamples > 0 || row.heartAverage > 0, format: (value) => `${formatNumber(value)} bpm` },
   oxygen: { label: 'SpO₂ moyenne', unit: '%', value: (row) => row.spo2Average || 0, available: (row) => row.spo2Samples > 0 || row.spo2Average > 0, format: (value) => `${formatNumber(value, 1)} %` },
   stress: { label: 'Stress moyen', unit: 'points', value: (row) => row.stressAverage || 0, available: (row) => row.stressSamples > 0 || row.stressAverage > 0, format: (value) => formatNumber(value, 1) },
+  weight: { label: 'Poids', unit: 'kg', value: (row) => row.weightAverage || 0, available: (row) => row.weightAverage > 0, format: (value) => `${formatNumber(value, 1)} kg` },
+  bloodPressure: { label: 'Tension (systolique)', unit: 'mmHg', value: (row) => row.systolicAverage || 0, available: (row) => row.systolicAverage > 0, format: (value) => `${formatNumber(value)} mmHg` },
+  glucose: { label: 'Glycémie', unit: 'mg/dL', value: (row) => row.glucoseAverage || 0, available: (row) => row.glucoseAverage > 0, format: (value) => `${formatNumber(value, 1)} mg/dL` },
 }
 
 export function MultiDayComparison({ dataset, day }) {
