@@ -236,6 +236,8 @@ p { text-wrap: pretty; }
   text-overflow: ellipsis;
 }
 .day-picker > svg:last-child { position: absolute; right: 9px; pointer-events: none; }
+.day-picker:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
+.day-picker select:focus-visible { outline: none; }
 .topbar__history {
   display: inline-flex;
   align-items: center;
@@ -391,6 +393,9 @@ p { text-wrap: pretty; }
 .quality-report__header { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; }
 .quality-report__header h2 { margin: 3px 0 4px; font-size: 1.2rem; }
 .quality-report__header p { max-width: 64ch; margin: 0; color: var(--muted); font-size: 0.8rem; line-height: 1.45; }
+.quality-report__scope { display: inline-block; margin-left: 6px; padding: 2px 9px; border-radius: 999px; color: var(--muted); background: var(--surface); font-size: 0.62rem; font-weight: 700; letter-spacing: 0; text-transform: none; vertical-align: middle; }
+.quality-day-badge { display: inline-flex; align-items: center; gap: 5px; margin-top: 9px; padding: 5px 11px; border-radius: 999px; color: var(--accent); background: var(--accent-soft); font-size: 0.74rem; font-weight: 650; }
+.quality-day-badge strong { font-weight: 780; }
 .section-kicker { display: inline-flex; align-items: center; gap: 6px; color: var(--primary); font-size: 0.7rem; font-weight: 760; text-transform: uppercase; letter-spacing: 0.045em; }
 .quality-score { display: grid; flex: 0 0 auto; place-content: center; width: 76px; height: 76px; border: 6px solid var(--line); border-radius: 50%; text-align: center; background: var(--bg); }
 .quality-score strong { font-size: 1.35rem; line-height: 1; }

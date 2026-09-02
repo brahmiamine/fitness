@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, CircleAlert, Info, ShieldCheck } from 'lucide-react'
-import { formatNumber } from '../lib/format'
+import { formatNumber, formatShortDay } from '../lib/format'
 
 const STATUS = {
   pass: { label: 'Réussi', icon: CheckCircle2 },
@@ -22,13 +22,14 @@ export function QualityReport({ dataset, day }) {
   return (
     <section className="content-section quality-report" aria-labelledby="quality-report-title">
       <header className="quality-report__header">
-        <div className={`quality-score quality-score--${report.level}`} aria-label={`Score de qualité global ${report.score} sur 100`}>
+        <div className={`quality-score quality-score--${report.level}`} aria-label={`Score de qualité global ${report.score} sur 100, calculé sur l’ensemble de la sauvegarde importée`}>
           <strong>{formatNumber(report.score)}</strong><span>/100</span>
         </div>
         <div>
           <span className="section-kicker"><ShieldCheck size={16} aria-hidden="true" /> Contrôle avant analyse</span>
-          <h2 id="quality-report-title">Rapport de qualité</h2>
-          <p>{scoreLabel(report.level)}. Le score mesure la cohérence technique et la couverture, pas votre état de santé.</p>
+          <h2 id="quality-report-title">Rapport de qualité <span className="quality-report__scope">de toute la sauvegarde</span></h2>
+          <p>{scoreLabel(report.level)}. Le score ci-contre porte sur l’ensemble de l’historique importé, pas seulement sur la journée affichée. Il mesure la cohérence technique et la couverture, pas votre état de santé.</p>
+          <span className="quality-day-badge">Journée du {formatShortDay(day)} : <strong>{formatNumber(daily?.score ?? 100)}/100</strong></span>
         </div>
       </header>
 
@@ -36,7 +37,7 @@ export function QualityReport({ dataset, day }) {
         <div><dt>Erreurs</dt><dd>{formatNumber(report.summary?.errors || 0)}</dd></div>
         <div><dt>Alertes</dt><dd>{formatNumber(report.summary?.warnings || 0)}</dd></div>
         <div><dt>Informations</dt><dd>{formatNumber(report.summary?.information || 0)}</dd></div>
-        <div><dt>Journée affichée</dt><dd>{formatNumber(daily?.score ?? 100)}/100</dd></div>
+        <div><dt>Score du jour affiché</dt><dd>{formatNumber(daily?.score ?? 100)}/100</dd></div>
       </dl>
 
       <div className="quality-checks">

@@ -109,8 +109,8 @@ function EmptyState({ onImport, importState }) {
 export default function App() {
   const [imports, setImports] = useState([])
   const [currentId, setCurrentId] = useState(() => localStorage.getItem('pulse-current-import') || '')
-  const [day, setDay] = useState('')
-  const [view, setView] = useState('overview')
+  const [day, setDay] = useState(() => localStorage.getItem('pulse-current-day') || '')
+  const [view, setView] = useState(() => localStorage.getItem('pulse-current-view') || 'overview')
   const [loading, setLoading] = useState(true)
   const [dataset, setDataset] = useState(null)
   const [dayLoading, setDayLoading] = useState(false)
@@ -140,6 +140,10 @@ export default function App() {
   }, [current, day])
 
   useEffect(() => {
+    if (day) localStorage.setItem('pulse-current-day', day)
+  }, [day])
+
+  useEffect(() => {
     if (!current || !day) return
     let active = true
     setDayLoading(true)
@@ -158,6 +162,7 @@ export default function App() {
 
   function handleViewChange(nextView) {
     setView(nextView)
+    localStorage.setItem('pulse-current-view', nextView)
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
 
@@ -172,7 +177,7 @@ export default function App() {
       setImports(items)
       setCurrentId(dataset.id)
       setDay(dataset.days[0]?.day || '')
-      setView('overview')
+      handleViewChange('overview')
       setImportState({ busy: false, progress: '', error: '' })
       historyRef.current?.close()
     } catch (error) {
