@@ -15,5 +15,8 @@ export default defineConfig(async ({ command }) => {
       target: 'es2022',
       sourcemap: true,
     },
+    test: {
+      setupFiles: ['./src/test/setup.js'],
+    },
   }
 })

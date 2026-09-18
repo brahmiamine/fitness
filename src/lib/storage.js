@@ -1,7 +1,9 @@
 const DATABASE_NAME = 'pulse-nxk'
 const IMPORT_STORE = 'imports'
 const DAY_STORE = 'day-data'
-const DATABASE_VERSION = 2
+const SETTINGS_STORE = 'settings'
+const PROFILE_KEY = 'personal-health-profile'
+const DATABASE_VERSION = 3
 
 export const DAY_DATA_FIELDS = [
   'records',
@@ -35,6 +37,9 @@ function openDatabase() {
         const store = database.createObjectStore(DAY_STORE, { keyPath: 'key' })
         store.createIndex('importId', 'importId')
         store.createIndex('importDay', ['importId', 'day'], { unique: true })
+      }
+      if (!database.objectStoreNames.contains(SETTINGS_STORE)) {
+        database.createObjectStore(SETTINGS_STORE, { keyPath: 'key' })
       }
     }
     request.onsuccess = () => resolve(request.result)
@@ -210,5 +215,18 @@ export function clearImports() {
   return withTransaction([IMPORT_STORE, DAY_STORE], 'readwrite', (tx) => {
     tx.objectStore(IMPORT_STORE).clear()
     tx.objectStore(DAY_STORE).clear()
+  })
+}
+
+export async function loadProfileRecord() {
+  const record = await withTransaction([SETTINGS_STORE], 'readonly', (tx) =>
+    requestResult(tx.objectStore(SETTINGS_STORE).get(PROFILE_KEY)),
+  )
+  return record?.value ?? null
+}
+
+export function saveProfileRecord(profile) {
+  return withTransaction([SETTINGS_STORE], 'readwrite', (tx) => {
+    tx.objectStore(SETTINGS_STORE).put({ key: PROFILE_KEY, value: profile })
   })
 }
