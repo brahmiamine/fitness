@@ -1,15 +1,12 @@
-import { Activity, Sparkles } from 'lucide-react'
-import { buildInsights } from '../../lib/analysis'
+import { Activity, Target } from 'lucide-react'
 import { formatDuration, formatNumber } from '../../lib/format'
 import { DayTimeline } from '../DayTimeline'
 import { MultiDayComparison } from '../MultiDayComparison'
 import { QualityReport } from '../QualityReport'
-import { IntelligenceReport } from '../IntelligenceReport'
 import { ArchiveOverview } from './ArchiveOverview'
-import { DataQuality, InsightList, MetricRow, SectionHeading } from './shared'
+import { DataQuality, MetricRow, SectionHeading } from './shared'
 
-export function Overview({ dataset, day, summary, history }) {
-  const insights = buildInsights(summary)
+export function Overview({ dataset, day, summary }) {
   return (
     <div className="dashboard-view">
       <section className="overview-lead">
@@ -28,18 +25,20 @@ export function Overview({ dataset, day, summary, history }) {
         />
       </section>
 
+      <section className="overview-decisions-callout">
+        <Target size={20} aria-hidden="true" />
+        <div>
+          <strong>Les recommandations personnalisées sont regroupées dans « Décisions ».</strong>
+          <p>Cette synthèse reste descriptive : les actions, comparaisons et plans se trouvent dans l’onglet Décisions.</p>
+        </div>
+      </section>
+
       <QualityReport dataset={dataset} day={day} />
       <MultiDayComparison dataset={dataset} day={day} />
-      <IntelligenceReport dataset={dataset} day={day} imports={history} currentSummary={summary} />
 
       <section className="content-section content-section--timeline">
         <SectionHeading icon={Activity} title="Ligne de la journée" description="Les mesures replacées sur la même période de 24 heures." />
         <DayTimeline dataset={dataset} day={day} />
-      </section>
-
-      <section className="content-section">
-        <SectionHeading icon={Sparkles} title="Ce qui ressort" description="Repères généraux calculés à partir de cette seule journée." />
-        <InsightList insights={insights} />
       </section>
 
       <ArchiveOverview dataset={dataset} />

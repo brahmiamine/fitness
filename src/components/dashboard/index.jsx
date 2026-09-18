@@ -1,6 +1,7 @@
-import { Footprints, HeartPulse, MoonStar, Sparkles, Wind } from 'lucide-react'
+import { Footprints, HeartPulse, MoonStar, Sparkles, Target, Wind } from 'lucide-react'
 import { summarizeDay } from '../../lib/analysis'
 import { ActivityView } from './ActivityView'
+import { DecisionsView } from './DecisionsView'
 import { HeartView } from './HeartView'
 import { Overview } from './Overview'
 import { SleepView } from './SleepView'
@@ -8,6 +9,7 @@ import { VitalsView } from './VitalsView'
 
 export const VIEW_ITEMS = [
   { id: 'overview', label: 'Synthèse', icon: Sparkles },
+  { id: 'decisions', label: 'Décisions', icon: Target },
   { id: 'sleep', label: 'Sommeil', icon: MoonStar },
   { id: 'heart', label: 'Cœur', icon: HeartPulse },
   { id: 'vitals', label: 'Mesures', icon: Wind },
@@ -18,6 +20,7 @@ export function Dashboard({ dataset, day, view, privateGps = [], history = [] })
   const summary = summarizeDay(dataset, day)
   const views = {
     overview: <Overview dataset={dataset} day={day} summary={summary} history={history} />,
+    decisions: <DecisionsView dataset={dataset} day={day} history={history} />,
     sleep: <SleepView dataset={dataset} day={day} summary={summary} />,
     heart: <HeartView dataset={dataset} day={day} summary={summary} />,
     vitals: <VitalsView dataset={dataset} day={day} summary={summary} />,
