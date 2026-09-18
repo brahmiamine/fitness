@@ -74,7 +74,7 @@ function comparisonAdvice(comparisons, targetSnapshot, domainOrder) {
       freshnessDays: targetSnapshot?.freshness?.dayAgeDays ?? null,
       sourceDay: comparison.periodA.end,
       period: comparison.periodA,
-      sourceMetrics: [{ metricKey, current: comparison.periodA.value, previous: comparison.periodB.value, period: comparison.periodA }],
+      sourceMetrics: [{ metricKey, current: comparison.periodA?.value ?? null, previous: comparison.periodB?.value ?? null, period: comparison.periodA }],
       order: domainOrder[BASELINE_METRICS[metricKey]?.domain] ?? 99,
     })
   }
