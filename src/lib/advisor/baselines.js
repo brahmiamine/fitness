@@ -28,16 +28,16 @@ function workoutMinutes(snapshot) {
  * metrics (steps, workouts) legitimately can be 0 on a real rest day.
  */
 export const BASELINE_METRICS = {
-  steps: { label: 'Pas', extract: (s) => s.activity.steps },
-  activeMinutes: { label: 'Minutes actives', extract: (s) => s.activity.activeMinutes },
-  intensiveMinutes: { label: 'Minutes intensives', extract: (s) => s.activity.intensiveMinutes },
-  sleepMinutes: { label: 'Sommeil', extract: (s) => (s.sleep.sessions > 0 ? s.sleep.minutes : null) },
-  heartAverage: { label: 'Cœur moyen', extract: (s) => (s.heart.samples > 0 ? s.heart.average : null) },
-  spo2Average: { label: 'SpO₂ moyenne', extract: (s) => (s.oxygen.samples > 0 ? s.oxygen.average : null) },
-  stressAverage: { label: 'Stress moyen', extract: (s) => (s.stress.samples > 0 ? s.stress.average : null) },
-  workoutMinutes: { label: 'Minutes de séance', extract: workoutMinutes },
-  workoutCount: { label: 'Séances', extract: (s) => (s.workouts || []).length },
-  weightKg: { label: 'Poids', extract: (s) => s.weight?.valueKg ?? null },
+  steps: { label: 'Pas', domain: 'activity', aggregation: 'sum', extract: (s) => s.activity.steps },
+  activeMinutes: { label: 'Minutes actives', domain: 'activity', aggregation: 'sum', extract: (s) => s.activity.activeMinutes },
+  intensiveMinutes: { label: 'Minutes intensives', domain: 'activity', aggregation: 'sum', extract: (s) => s.activity.intensiveMinutes },
+  sleepMinutes: { label: 'Sommeil', domain: 'sleep', aggregation: 'mean', extract: (s) => (s.sleep.sessions > 0 ? s.sleep.minutes : null) },
+  heartAverage: { label: 'Cœur moyen', domain: 'heart', aggregation: 'mean', extract: (s) => (s.heart.samples > 0 ? s.heart.average : null) },
+  spo2Average: { label: 'SpO₂ moyenne', domain: 'oxygen', aggregation: 'mean', extract: (s) => (s.oxygen.samples > 0 ? s.oxygen.average : null) },
+  stressAverage: { label: 'Stress moyen', domain: 'stress', aggregation: 'mean', extract: (s) => (s.stress.samples > 0 ? s.stress.average : null) },
+  workoutMinutes: { label: 'Minutes de séance', domain: 'activity', aggregation: 'sum', extract: workoutMinutes },
+  workoutCount: { label: 'Séances', domain: 'activity', aggregation: 'sum', extract: (s) => (s.workouts || []).length },
+  weightKg: { label: 'Poids', domain: 'weight', aggregation: 'mean', extract: (s) => s.weight?.valueKg ?? null },
 }
 
 export function requireMetric(metricKey) {
@@ -55,7 +55,7 @@ function daysBefore(snapshots, targetDay) {
   return snapshots.filter((snapshot) => snapshot.day < targetDay)
 }
 
-function qualityPasses(snapshot, qualityThreshold) {
+export function qualityPasses(snapshot, qualityThreshold) {
   const score = snapshot.quality?.score
   return score == null || score >= qualityThreshold
 }
