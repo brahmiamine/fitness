@@ -34,7 +34,8 @@ export function daySnapshot(day, {
   weight = null,
   quality = 95,
   dayAgeDays = 0,
-  minuteSteps = [[480, 100], [600, 100], [720, 100], [900, 100], [1080, 100]],
+  minuteSteps = Array.from({ length: 15 }, (_, index) => [480 + index * 60, 100]),
+  distanceMeters,
   bloodPressure = null,
   bloodGlucose = null,
 } = {}) {
@@ -45,7 +46,7 @@ export function daySnapshot(day, {
     activity: {
       steps,
       calories: 2000,
-      distanceMeters: steps * 0.7,
+      distanceMeters: distanceMeters === undefined ? steps * 0.7 : distanceMeters,
       activeMinutes: 40,
       intensiveMinutes: 10,
       pai: 5,
