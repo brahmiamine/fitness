@@ -83,6 +83,23 @@ describe('buildDailyHealthSnapshot', () => {
     )
   })
 
+  it('exposes a compact sparse minute-level movement trace for the advisors', () => {
+    const chunk = baseChunk({
+      records: [
+        { day: DAY, dateTime: 60 * 60 * 8 * 1000, tz: 0, steps: 20 },
+        { day: DAY, dateTime: 60 * 60 * 8 * 1000 + 60_000, tz: 0, steps: 5 },
+        { day: DAY, dateTime: 60 * 60 * 9 * 1000, tz: 0, steps: 0 },
+      ],
+    })
+    const snapshot = buildDailyHealthSnapshot({ day: DAY, dayMeta: { day: DAY, steps: 25 }, chunk })
+    expect(snapshot.activity.minuteSteps).toEqual([
+      [480, 20],
+      [481, 5],
+    ])
+    expect(snapshot.activity.hourlySteps[8]).toBe(25)
+    expect(snapshot.activity.hasMinuteData).toBe(true)
+  })
+
   it('never reads GPS data even if present on the chunk', () => {
     const chunk = baseChunk()
     chunk.gps = [{ day: DAY, latitude: 48.8, longitude: 2.3 }]
