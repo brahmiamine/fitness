@@ -94,6 +94,13 @@ export function formatDuration(minutes) {
   return `${hours} h ${String(rest).padStart(2, '0')}`
 }
 
+/** Formats a minute-of-day (0–1439) as a 24-hour clock label in French. */
+export function formatClockMinute(minuteOfDay) {
+  if (!Number.isFinite(minuteOfDay)) return '—'
+  const normalized = ((Math.round(minuteOfDay) % 1440) + 1440) % 1440
+  return `${String(Math.floor(normalized / 60)).padStart(2, '0')} h ${String(normalized % 60).padStart(2, '0')}`
+}
+
 export function formatNumber(value, maximumFractionDigits = 0) {
   if (!Number.isFinite(value)) return '—'
   return new Intl.NumberFormat('fr-FR', { maximumFractionDigits }).format(value)
