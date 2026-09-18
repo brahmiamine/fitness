@@ -1,3 +1,4 @@
+import { formatClockMinute } from '../format'
 import { computeMetricBaseline } from './baselines'
 import { describeSourceDay, freshnessFactor, isFresh } from './freshness'
 import { GUIDANCE_LEVELS } from './guidanceLevels'
@@ -18,12 +19,6 @@ export const SEDENTARY_DEFAULTS = {
   concentratedHours: 4,
   concentratedShare: 0.5,
   minimumStepsForDistribution: 2000,
-}
-
-function formatClock(minuteOfDay) {
-  const hours = Math.floor(minuteOfDay / 60) % 24
-  const minutes = Math.round(minuteOfDay % 60)
-  return `${String(hours).padStart(2, '0')} h ${String(minutes).padStart(2, '0')}`
 }
 
 /**
@@ -125,7 +120,7 @@ export function assessSedentary({ snapshots, targetDay, options = {} } = {}) {
       metric: 'steps',
       mandatory: true,
       target: null,
-      window: longest ? { startMinute: longest.startMinute, endMinute: longest.endMinute, label: `de ${formatClock(longest.startMinute)} à ${formatClock(longest.endMinute)}` } : null,
+      window: longest ? { startMinute: longest.startMinute, endMinute: longest.endMinute, label: `de ${formatClockMinute(longest.startMinute)} à ${formatClockMinute(longest.endMinute)}` } : null,
     })
   }
 

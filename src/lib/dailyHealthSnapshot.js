@@ -43,6 +43,29 @@ function buildMinuteMovement(records = []) {
   return { minuteSteps, hourlySteps, hasMinuteData: minuteSteps.length > 0 }
 }
 
+/**
+ * Bedtime/wake clock positions and physiological context for the main
+ * sleep session of the day. The main session is the one with the most
+ * asleep minutes, so a nap never overrides the night. Values stay `null`
+ * when the backup has no usable session, and the sleep advisor (#18) is
+ * the only consumer.
+ */
+function buildSleepDetail(sleepRows = []) {
+  const sessions = sleepRows.filter((row) => Number.isFinite(Number(row.start)) && Number.isFinite(Number(row.end)))
+  if (!sessions.length) {
+    return { bedtimeMinutes: null, wakeMinutes: null, hrAverage: null, spo2Average: null }
+  }
+  const asleepOf = (row) => (Number(row.light) || 0) + (Number(row.deep) || 0) + (Number(row.rem) || 0) || Number(row.asleep) || 0
+  const main = sessions.reduce((best, row) => (asleepOf(row) > asleepOf(best) ? row : best), sessions[0])
+  const tz = Number(main.tz) || 0
+  return {
+    bedtimeMinutes: Math.round(localMinutes(Number(main.start), tz)),
+    wakeMinutes: Math.round(localMinutes(Number(main.end), tz)),
+    hrAverage: Number.isFinite(Number(main.heartAverage)) && Number(main.heartAverage) > 0 ? Number(main.heartAverage) : null,
+    spo2Average: Number.isFinite(Number(main.spo2Average)) && Number(main.spo2Average) > 0 ? Number(main.spo2Average) : null,
+  }
+}
+
 function buildCompleteness(chunk) {
   const counts = domainSampleCounts(chunk)
   const present = HEALTH_DOMAINS.filter((domain) => counts[domain] > 0)
@@ -85,6 +108,7 @@ export function buildDailyHealthSnapshot({ day, dayMeta, chunk, source, reminder
   }
   const summary = summarizeDay(syntheticDataset, day)
   const movement = buildMinuteMovement(chunk.records)
+  const sleepDetail = buildSleepDetail(chunk.sleep)
   const latestWeight = latestByDateTime(chunk.weights)
   const latestBloodPressure = latestByDateTime(chunk.bloodPressure)
   const latestBloodGlucose = latestByDateTime(chunk.bloodGlucose)
@@ -119,6 +143,7 @@ export function buildDailyHealthSnapshot({ day, dayMeta, chunk, source, reminder
       window: summary.sleepWindow || 0,
       sessions: summary.sleepSessions || 0,
       intervalsCount: (chunk.sleepIntervals || []).length,
+      ...sleepDetail,
     },
     oxygen: {
       average: summary.spo2Average || 0,

@@ -100,6 +100,20 @@ describe('buildDailyHealthSnapshot', () => {
     expect(snapshot.activity.hasMinuteData).toBe(true)
   })
 
+  it('exposes bedtime/wake clock positions for the main sleep session', () => {
+    const chunk = baseChunk({
+      sleep: [
+        { day: DAY, start: Date.parse('2026-09-17T23:00:00Z'), end: Date.parse('2026-09-18T07:00:00Z'), tz: 0, light: 200, deep: 150, rem: 100, heartAverage: 57, spo2Average: 96 },
+        { day: DAY, start: Date.parse('2026-09-18T14:00:00Z'), end: Date.parse('2026-09-18T14:20:00Z'), tz: 0, light: 20, deep: 0, rem: 0 },
+      ],
+    })
+    const snapshot = buildDailyHealthSnapshot({ day: DAY, dayMeta: { day: DAY }, chunk })
+    expect(snapshot.sleep.bedtimeMinutes).toBe(23 * 60)
+    expect(snapshot.sleep.wakeMinutes).toBe(7 * 60)
+    expect(snapshot.sleep.hrAverage).toBe(57)
+    expect(snapshot.sleep.spo2Average).toBe(96)
+  })
+
   it('never reads GPS data even if present on the chunk', () => {
     const chunk = baseChunk()
     chunk.gps = [{ day: DAY, latitude: 48.8, longitude: 2.3 }]
