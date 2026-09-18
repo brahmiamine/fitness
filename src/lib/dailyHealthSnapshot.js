@@ -1,4 +1,5 @@
 import { summarizeDay } from './analysis'
+import { localMinutes } from './format'
 
 export const HEALTH_DOMAINS = [
   'records',
@@ -18,6 +19,28 @@ function latestByDateTime(rows = []) {
 
 function domainSampleCounts(chunk) {
   return Object.fromEntries(HEALTH_DOMAINS.map((domain) => [domain, (chunk[domain] || []).length]))
+}
+
+/**
+ * Compact minute-level movement trace for the day. Only minutes with at
+ * least one recorded step are kept (sparse `[minuteOfDay, steps]` pairs),
+ * so a full day costs a few hundred entries instead of 1 440. This is what
+ * the sedentary/activity advisors (#17/#19) read; it stays additive so the
+ * descriptive dashboards are unaffected.
+ */
+function buildMinuteMovement(records = []) {
+  const minuteSteps = []
+  const hourlySteps = new Array(24).fill(0)
+  for (const row of records) {
+    const steps = Number(row.steps) || 0
+    if (steps <= 0 || !Number.isFinite(row.dateTime) || row.dateTime <= 0) continue
+    const minute = Math.floor(localMinutes(row.dateTime, Number(row.tz) || 0))
+    if (minute < 0 || minute >= 1440) continue
+    minuteSteps.push([minute, steps])
+    hourlySteps[Math.floor(minute / 60)] += steps
+  }
+  minuteSteps.sort((a, b) => a[0] - b[0])
+  return { minuteSteps, hourlySteps, hasMinuteData: minuteSteps.length > 0 }
 }
 
 function buildCompleteness(chunk) {
@@ -61,6 +84,7 @@ export function buildDailyHealthSnapshot({ day, dayMeta, chunk, source, reminder
     records: chunk.records || [],
   }
   const summary = summarizeDay(syntheticDataset, day)
+  const movement = buildMinuteMovement(chunk.records)
   const latestWeight = latestByDateTime(chunk.weights)
   const latestBloodPressure = latestByDateTime(chunk.bloodPressure)
   const latestBloodGlucose = latestByDateTime(chunk.bloodGlucose)
@@ -78,6 +102,9 @@ export function buildDailyHealthSnapshot({ day, dayMeta, chunk, source, reminder
       paiEarned: summary.paiEarned || 0,
       activeHours: summary.activeHours || 0,
       maximumMinuteSteps: summary.maximumMinuteSteps || 0,
+      minuteSteps: movement.minuteSteps,
+      hourlySteps: movement.hourlySteps,
+      hasMinuteData: movement.hasMinuteData,
     },
     heart: {
       average: summary.heartAverage || 0,
