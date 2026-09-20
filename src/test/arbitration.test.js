@@ -36,6 +36,7 @@ describe('buildDecisionSet', () => {
     })
     expect(decisions.commitments).toHaveLength(MAX_COMMITMENTS)
     expect(decisions.commitments[0].id).toBe('safety-bp-recheck')
+    expect(decisions.commitments[0].action).toBe('Recontrôler la tension.')
     const selectedIds = decisions.commitments.map((item) => item.id)
     expect(selectedIds).not.toContain('activity-workout-due')
   })
