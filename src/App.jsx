@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, ChevronDown, Database, FileClock, LockKeyhole, Menu, Trash2, X } from 'lucide-react'
-import { Dashboard, VIEW_ITEMS } from './components/dashboard'
+import { Dashboard } from './components/dashboard'
 import { UploadPanel } from './components/UploadPanel'
 import { InstallApp } from './components/InstallApp'
 import { formatDay, formatShortDay } from './lib/format'
@@ -13,25 +13,6 @@ function Brand() {
       <span className="brand__mark" aria-hidden="true"><i /><i /><i /></span>
       <span>Pulse</span>
     </a>
-  )
-}
-
-function Navigation({ active, onChange, mobile = false }) {
-  return (
-    <nav className={mobile ? 'mobile-nav' : 'side-nav'} aria-label="Résultats fitness">
-      {VIEW_ITEMS.map(({ id, label, icon: Icon }) => (
-        <button
-          key={id}
-          type="button"
-          className={active === id ? 'is-active' : ''}
-          aria-current={active === id ? 'page' : undefined}
-          onClick={() => onChange(id)}
-        >
-          <Icon size={mobile ? 21 : 19} aria-hidden="true" />
-          <span>{label}</span>
-        </button>
-      ))}
-    </nav>
   )
 }
 
@@ -91,9 +72,9 @@ function EmptyState({ onImport, importState }) {
       <header className="empty-header"><Brand /><InstallApp compact /></header>
       <main className="empty-main">
         <section className="empty-intro">
-          <span className="empty-intro__label"><Database size={17} aria-hidden="true" /> Lecteur NXK</span>
-          <h1>Vos données fitness deviennent enfin lisibles.</h1>
-          <p>Importez une sauvegarde Notify et retrouvez sommeil, cœur, SpO₂, stress et activité dans une vue cohérente.</p>
+          <span className="empty-intro__label"><Database size={17} aria-hidden="true" /> Conseiller personnel</span>
+          <h1>Importez vos données. Pulse vous dit quoi faire.</h1>
+          <p>Pulse lit votre sauvegarde localement, compare vos habitudes et affiche seulement les décisions utiles pour aujourd’hui, demain et les prochains jours.</p>
           <div className="privacy-points">
             <span><LockKeyhole size={17} aria-hidden="true" /> Aucun envoi vers un serveur</span>
             <span><FileClock size={17} aria-hidden="true" /> Historique conservé localement</span>
@@ -101,7 +82,7 @@ function EmptyState({ onImport, importState }) {
         </section>
         <UploadPanel onImport={onImport} {...importState} />
       </main>
-      <footer className="empty-footer">Les résultats du bracelet sont des estimations de bien-être et non un diagnostic médical.</footer>
+      <footer className="empty-footer">Les données de la montre restent des estimations de bien-être et ne remplacent pas un professionnel de santé.</footer>
     </div>
   )
 }
@@ -110,7 +91,6 @@ export default function App() {
   const [imports, setImports] = useState([])
   const [currentId, setCurrentId] = useState(() => localStorage.getItem('pulse-current-import') || '')
   const [day, setDay] = useState('')
-  const [view, setView] = useState('overview')
   const [loading, setLoading] = useState(true)
   const [dataset, setDataset] = useState(null)
   const [dayLoading, setDayLoading] = useState(false)
@@ -156,23 +136,17 @@ export default function App() {
     return () => { active = false }
   }, [current?.id, current?.importedAt, day])
 
-  function handleViewChange(nextView) {
-    setView(nextView)
-    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
-  }
-
   async function handleImport(file) {
     setImportState({ busy: true, progress: 'Lecture du fichier…', error: '' })
     try {
       await prepareStorage(file.size)
-      const dataset = await parseNxk(file, (progress) => setImportState({ busy: true, progress, error: '' }))
-      await saveImport(dataset)
-      setPrivateGps({ importId: dataset.id, rows: dataset.gpsPrivate || [] })
+      const parsed = await parseNxk(file, (progress) => setImportState({ busy: true, progress, error: '' }))
+      await saveImport(parsed)
+      setPrivateGps({ importId: parsed.id, rows: parsed.gpsPrivate || [] })
       const items = await listImports()
       setImports(items)
-      setCurrentId(dataset.id)
-      setDay(dataset.days[0]?.day || '')
-      setView('overview')
+      setCurrentId(parsed.id)
+      setDay(parsed.days[0]?.day || '')
       setImportState({ busy: false, progress: '', error: '' })
       historyRef.current?.close()
     } catch (error) {
@@ -197,18 +171,7 @@ export default function App() {
   if (!current) return <EmptyState onImport={handleImport} importState={importState} />
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <Brand />
-        <Navigation active={view} onChange={handleViewChange} />
-        <button className="sidebar-history" type="button" onClick={() => historyRef.current?.showModal()}>
-          <FileClock size={19} aria-hidden="true" />
-          <span>Historique</span>
-          <strong>{imports.length}</strong>
-        </button>
-        <p className="sidebar-privacy"><LockKeyhole size={16} aria-hidden="true" /> Données locales</p>
-      </aside>
-
+    <div className="app-shell app-shell--single">
       <div className="app-content">
         <header className="topbar">
           <div className="topbar__mobile-brand"><Brand /></div>
@@ -228,18 +191,11 @@ export default function App() {
 
         <main className="main-content" id="main-content" aria-busy={dayLoading}>
           {dataset && dataset.id === current.id && (dataset.storageMode !== 'day-partitioned' || dataset.day === day)
-            ? <Dashboard
-                dataset={dataset}
-                day={day}
-                view={view}
-                history={imports}
-                privateGps={privateGps.importId === current.id ? privateGps.rows.filter((row) => row.day === day) : []}
-              />
-            : <div className="app-loading app-loading--inline" role="status"><span className="loader" aria-hidden="true" /> Chargement de la journée…</div>}
+            ? <Dashboard dataset={dataset} day={day} history={imports} />
+            : <div className="app-loading app-loading--inline" role="status"><span className="loader" aria-hidden="true" /> Calcul des décisions…</div>}
         </main>
       </div>
 
-      <Navigation active={view} onChange={handleViewChange} mobile />
       <HistoryDialog
         dialogRef={historyRef}
         imports={imports}
