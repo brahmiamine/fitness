@@ -53,6 +53,7 @@ function toDecision(candidate, { generatedAt, targetSnapshot }) {
   const priorityClass = priorityClassOf(candidate.domain, actionClass)
   return {
     id: candidate.id,
+    action: candidate.action || null,
     actionClass,
     domain: candidate.domain || 'general',
     priorityClass,
